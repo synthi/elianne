@@ -1,6 +1,6 @@
--- lib/storage.lua v0.2
--- CHANGELOG v0.2:
--- 1. SEGURIDAD: Inicialización segura de la matriz 64x64 en caso de archivo inexistente.
+-- lib/storage.lua v0.3
+-- CHANGELOG v0.3:
+-- 1. FIX: Adaptación a la arquitectura de Deltas (patch_set) para carga escalonada.
 
 local Storage = {}
 
@@ -35,12 +35,14 @@ function Storage.load(G, pset_number)
         if data and data.patch then
             G.patch = data.patch
             
-            local Matrix = include('lib/matrix')
-            
             clock.run(function()
-                for dst_id = 1, 64 do
-                    Matrix.update_destination(dst_id, G)
-                    clock.sleep(0.01)
+                for src_id = 1, 64 do
+                    for dst_id = 1, 64 do
+                        if G.patch[src_id] and G.patch[src_id][dst_id] and G.patch[src_id][dst_id].active then
+                            engine.patch_set(dst_id, src_id, 1.0)
+                            clock.sleep(0.005) -- Respiro microscópico para evitar UDP Flood
+                        end
+                    end
                 end
                 print("ELIANNE: Matriz DSP restaurada (Total Recall).")
                 G.screen_dirty = true
@@ -56,9 +58,12 @@ function Storage.load(G, pset_number)
                 G.patch[src][dst].active = false
             end
         end
-        local Matrix = include('lib/matrix')
-        for dst_id = 1, 64 do
-            Matrix.update_destination(dst_id, G)
+        
+        -- Limpiar matriz en SC
+        for src_id = 1, 64 do
+            for dst_id = 1, 64 do
+                engine.patch_set(dst_id, src_id, 0.0)
+            end
         end
         G.screen_dirty = true
     end
