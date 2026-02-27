@@ -1,4 +1,4 @@
--- lib/params_setup.lua v0.2
+-- lib/params_setup.lua v0.21
 -- CHANGELOG v0.2:
 -- 1. ESTRUCTURA: Eliminada carpeta genérica. Creadas carpetas por módulo.
 -- 2. SNAPSHOTS: Añadidos los 64 Attenuverters como parámetros ocultos para Total Recall.
@@ -118,6 +118,15 @@ function Params.init(G)
     params:add{type = "control", id = "m8_wow", name = "Tape Wow", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.1), action = function(x) engine.m8_wow(x) end}
     params:add{type = "control", id = "m8_flutter", name = "Tape Flutter", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.05), action = function(x) engine.m8_flutter(x) end}
 
+       -- ==========================================
+    -- INTERRUPTORES DE ESTADO (Faltantes)
+    -- ==========================================
+    params:add_group("STATE TOGGLES", 5)
+    params:add{type = "option", id = "m5_state", name = "1005 State", options = {"UNMOD", "MOD"}, default = 1, action = function(x) engine.m5_state(x - 1) end}
+    params:add{type = "option", id = "m8_filt_byp", name = "Nexus Filt Bypass", options = {"ON", "BYPASS"}, default = 1, action = function(x) engine.m8_filt_byp(x - 1) end}
+    params:add{type = "option", id = "m8_adc_mon", name = "Nexus ADC Mon", options = {"OFF", "ON"}, default = 1, action = function(x) engine.m8_adc_mon(x - 1) end}
+    params:add{type = "option", id = "m8_tape_sat", name = "Nexus Tape Sat", options = {"CLEAN", "PUSHED", "CRUSHED"}, default = 1} -- Se usará en futuras expansiones DSP
+    params:add{type = "option", id = "m8_tape_mute", name = "Nexus Tape Mute", options = {"PLAY", "MUTE"}, default = 1, action = function(x) engine.m8_tape_mute(x - 1) end}
     -- ==========================================
     -- ATTENUVERTERS OCULTOS (Para Snapshots)
     -- ==========================================
