@@ -1,13 +1,15 @@
--- lib/grid_ui.lua v0.2.2
--- CHANGELOG v0.2:
--- 1. SEGURIDAD: Implementado temporizador de 1 segundo para desconectar cables.
--- 2. PARCHEO: Conexión inmediata, desconexión retardada (Hold > 1s).
-GridUI.refresh_counter = 0
+-- lib/grid_ui.lua v0.3
+-- CHANGELOG v0.3:
+-- 1. SINTAXIS: Declaración local estricta al inicio.
+-- 2. CORRUTINAS: Auto-anulación de disconnect_timer para evitar errores de hilo muerto.
+-- 3. UI: Integración segura de la respiración OSC.
 
-local GridUI = {}
+local GridUI = {} -- DECLARACIÓN OBLIGATORIA ANTES DE ASIGNAR PROPIEDADES
+
 GridUI.cache = {}
 GridUI.held_nodes = {} 
-GridUI.disconnect_timer = nil -- Variable para almacenar la corrutina del temporizador
+GridUI.disconnect_timer = nil
+GridUI.refresh_counter = 0
 
 function GridUI.init(G)
     for x = 1, 16 do
@@ -36,7 +38,6 @@ function GridUI.key(G, g, x, y, z)
             G.focus.node_x = x
             G.focus.node_y = y
             
-            -- Lógica de Parcheo Bidireccional
             if #GridUI.held_nodes == 2 then
                 local n1 = GridUI.held_nodes[1].node
                 local n2 = GridUI.held_nodes[2].node
@@ -47,16 +48,15 @@ function GridUI.key(G, g, x, y, z)
                     local Matrix = include('lib/matrix')
                     
                     if G.patch[src.id][dst.id].active then
-                        -- Ya están conectados: Iniciar temporizador de desconexión (1 segundo)
                         GridUI.disconnect_timer = clock.run(function()
                             clock.sleep(1.0)
                             G.patch[src.id][dst.id].active = false
                             Matrix.update_destination(dst.id, G)
                             G.screen_dirty = true
                             print("ELIANNE: Cable desconectado.")
+                            GridUI.disconnect_timer = nil -- AUTO-ANULACIÓN DEL HILO
                         end)
                     else
-                        -- No están conectados: Conectar inmediatamente
                         G.patch[src.id][dst.id].active = true
                         Matrix.update_destination(dst.id, G)
                         print("ELIANNE: Cable conectado.")
@@ -67,7 +67,7 @@ function GridUI.key(G, g, x, y, z)
             end
         end
     elseif z == 0 then
-        -- Si se suelta un botón, cancelar el temporizador de desconexión si estaba corriendo
+        -- Cancelación segura de corrutina
         if GridUI.disconnect_timer then
             clock.cancel(GridUI.disconnect_timer)
             GridUI.disconnect_timer = nil
@@ -91,7 +91,6 @@ end
 function GridUI.redraw(G, g)
     if not g then return end
 
-    -- AUTO-HEAL (Inspirado en ncoco): Forzar limpieza de caché cada ~2 segundos
     GridUI.refresh_counter = GridUI.refresh_counter + 1
     if GridUI.refresh_counter > 60 then
         for x = 1, 16 do for y = 1, 8 do GridUI.cache[x][y] = -1 end end
@@ -108,25 +107,22 @@ function GridUI.redraw(G, g)
             local is_menu = (y == 4)
             
             if node or is_menu then
-                -- RESPIRACIÓN: Calcular brillo base + modulación por audio
                 local base_bright = is_even_module and 4 or 2
                 local audio_mod = 0
                 
-                if node and G.node_levels then
-                    -- Escalar la amplitud (0.0 a 1.0) a niveles de brillo (0 a 6)
+                -- Lectura segura de la tabla de respiración
+                if node and G.node_levels and G.node_levels[node.id] then
                     audio_mod = math.floor(util.clamp(G.node_levels[node.id] * 10, 0, 6))
                 end
                 
-                b = util.clamp(base_bright + audio_mod, 0, 14) -- Tope en 14 para reservar el 15
+                b = util.clamp(base_bright + audio_mod, 0, 14)
                 
-                -- Iluminar si está presionado (Prioridad Absoluta)
                 for _, h in ipairs(GridUI.held_nodes) do
                     if h.x == x and h.y == y then
                         b = 15
                     end
                 end
                 
-                -- Iluminar conexiones activas en modo Idle
                 if node and G.focus.state == "idle" and b ~= 15 then
                     local has_connection = false
                     if node.type == "out" then
@@ -142,7 +138,6 @@ function GridUI.redraw(G, g)
                 end
             end
             
-            -- Caché Diferencial
             if GridUI.cache[x][y] ~= b then
                 g:led(x, y, b)
                 GridUI.cache[x][y] = b
@@ -151,6 +146,5 @@ function GridUI.redraw(G, g)
     end
     g:refresh()
 end
-
 
 return GridUI
