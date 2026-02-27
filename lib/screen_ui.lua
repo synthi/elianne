@@ -1,44 +1,18 @@
--- lib/screen_ui.lua v0.4
--- CHANGELOG v0.4:
--- 1. FATES SUPPORT: Integración total del Encoder 4 (E4) en renderizado y lógica.
--- 2. MAPEO E4: Asignado a Mix Pulse (1004-T), JFET Sat (1047) y Filter Drive (Nexus).
+-- lib/screen_ui.lua v0.5
+-- CHANGELOG v0.5:
+-- 1. SEGURIDAD: Añadidas protecciones contra Nil Indexing en draw_node_menu y enc.
 
 local ScreenUI = {}
 
--- Diccionario de Menús Contextuales (Ahora con E4)
 local MenuDef = {
-    [1] = { -- 1004-T (A)
-        A = { title = "1004-T (A) MIXER", e1 = "m1_mix_sine", e2 = "m1_mix_tri", e3 = "m1_mix_saw", e4 = "m1_mix_pulse" },
-        B = { title = "1004-T (A) CORE", e1 = "m1_pwm", e2 = "m1_tune", e3 = "m1_fine", k3 = "m1_range" }
-    },
-    [2] = { -- 1004-T (B)
-        A = { title = "1004-T (B) MIXER", e1 = "m2_mix_sine", e2 = "m2_mix_tri", e3 = "m2_mix_saw", e4 = "m2_mix_pulse" },
-        B = { title = "1004-T (B) CORE", e1 = "m2_pwm", e2 = "m2_tune", e3 = "m2_fine", k3 = "m2_range" }
-    },
-    [3] = { -- 1023 DUAL VCO
-        A = { title = "1023 - OSC 1", e1 = "m3_pwm1", e2 = "m3_tune1", e3 = "m3_morph1", k3 = "m3_range1" },
-        B = { title = "1023 - OSC 2", e1 = "m3_pwm2", e2 = "m3_tune2", e3 = "m3_morph2", k3 = "m3_range2" }
-    },
-    [4] = { -- 1016/36 NOISE
-        A = { title = "1016 NOISE", e1 = "m4_slow_rate", e2 = "m4_tilt1", e3 = "m4_tilt2", k2 = "m4_type1", k3 = "m4_type2" },
-        B = { title = "1036 S&H", e1 = "m4_clk_rate", e2 = "m4_prob_skew", e3 = "m4_glide" }
-    },
-    [5] = { -- 1005 MODAMP
-        A = { title = "1005 STATE", e1 = "m5_mod_gain", e2 = "m5_unmod_gain", e3 = "m5_drive", k2 = "m5_state" },
-        B = { title = "1005 VCA", e1 = "m5_vca_base", e2 = "m5_vca_resp", e3 = "m5_xfade", k2 = "m5_state" }
-    },
-    [6] = { -- 1047 (A)
-        A = { title = "1047 (A) FILTER", e1 = "m6_cutoff", e2 = "m6_fine", e3 = "m6_q", e4 = "m6_jfet" },
-        B = { title = "1047 (A) NOTCH", e1 = "m6_notch", e2 = "m6_final_q", e3 = "m6_out_lvl" }
-    },
-    [7] = { -- 1047 (B)
-        A = { title = "1047 (B) FILTER", e1 = "m7_cutoff", e2 = "m7_fine", e3 = "m7_q", e4 = "m7_jfet" },
-        B = { title = "1047 (B) NOTCH", e1 = "m7_notch", e2 = "m7_final_q", e3 = "m7_out_lvl" }
-    },
-    [8] = { -- NEXUS
-        A = { title = "NEXUS MASTER", e1 = "m8_cut_l", e2 = "m8_cut_r", e3 = "m8_res", e4 = "m8_drive", k2 = "m8_filt_byp", k3 = "m8_adc_mon" },
-        B = { title = "NEXUS TAPE", e1 = "m8_tape_time", e2 = "m8_tape_fb", e3 = "m8_tape_mix", e4 = "m8_wow", k2 = "m8_tape_sat", k3 = "m8_tape_mute" }
-    }
+    [1] = { A = { title = "1004-T (A) MIXER", e1 = "m1_mix_sine", e2 = "m1_mix_tri", e3 = "m1_mix_saw", e4 = "m1_mix_pulse" }, B = { title = "1004-T (A) CORE", e1 = "m1_pwm", e2 = "m1_tune", e3 = "m1_fine", k3 = "m1_range" } },
+    [2] = { A = { title = "1004-T (B) MIXER", e1 = "m2_mix_sine", e2 = "m2_mix_tri", e3 = "m2_mix_saw", e4 = "m2_mix_pulse" }, B = { title = "1004-T (B) CORE", e1 = "m2_pwm", e2 = "m2_tune", e3 = "m2_fine", k3 = "m2_range" } },
+    [3] = { A = { title = "1023 - OSC 1", e1 = "m3_pwm1", e2 = "m3_tune1", e3 = "m3_morph1", k3 = "m3_range1" }, B = { title = "1023 - OSC 2", e1 = "m3_pwm2", e2 = "m3_tune2", e3 = "m3_morph2", k3 = "m3_range2" } },
+    [4] = { A = { title = "1016 NOISE", e1 = "m4_slow_rate", e2 = "m4_tilt1", e3 = "m4_tilt2", k2 = "m4_type1", k3 = "m4_type2" }, B = { title = "1036 S&H", e1 = "m4_clk_rate", e2 = "m4_prob_skew", e3 = "m4_glide" } },
+    [5] = { A = { title = "1005 STATE", e1 = "m5_mod_gain", e2 = "m5_unmod_gain", e3 = "m5_drive", k2 = "m5_state" }, B = { title = "1005 VCA", e1 = "m5_vca_base", e2 = "m5_vca_resp", e3 = "m5_xfade", k2 = "m5_state" } },
+    [6] = { A = { title = "1047 (A) FILTER", e1 = "m6_cutoff", e2 = "m6_fine", e3 = "m6_q", e4 = "m6_jfet" }, B = { title = "1047 (A) NOTCH", e1 = "m6_notch", e2 = "m6_final_q", e3 = "m6_out_lvl" } },
+    [7] = { A = { title = "1047 (B) FILTER", e1 = "m7_cutoff", e2 = "m7_fine", e3 = "m7_q", e4 = "m7_jfet" }, B = { title = "1047 (B) NOTCH", e1 = "m7_notch", e2 = "m7_final_q", e3 = "m7_out_lvl" } },
+    [8] = { A = { title = "NEXUS MASTER", e1 = "m8_cut_l", e2 = "m8_cut_r", e3 = "m8_res", e4 = "m8_drive", k2 = "m8_filt_byp", k3 = "m8_adc_mon" }, B = { title = "NEXUS TAPE", e1 = "m8_tape_time", e2 = "m8_tape_fb", e3 = "m8_tape_mix", e4 = "m8_wow", k2 = "m8_tape_sat", k3 = "m8_tape_mute" } }
 }
 
 local function grid_to_screen(x, y)
@@ -53,13 +27,15 @@ function ScreenUI.draw_idle(G)
             if data.active then
                 local src_node = G.nodes[src_id]
                 local dst_node = G.nodes[dst_id]
-                local sx1, sy1 = grid_to_screen(src_node.x, src_node.y)
-                local sx2, sy2 = grid_to_screen(dst_node.x, dst_node.y)
-                screen.move(sx1, sy1)
-                local cx = (sx1 + sx2) / 2
-                local cy = math.max(sy1, sy2) + 10 
-                screen.curve(sx1, sy1, cx, cy, sx2, sy2)
-                screen.stroke()
+                if src_node and dst_node then
+                    local sx1, sy1 = grid_to_screen(src_node.x, src_node.y)
+                    local sx2, sy2 = grid_to_screen(dst_node.x, dst_node.y)
+                    screen.move(sx1, sy1)
+                    local cx = (sx1 + sx2) / 2
+                    local cy = math.max(sy1, sy2) + 10 
+                    screen.curve(sx1, sy1, cx, cy, sx2, sy2)
+                    screen.stroke()
+                end
             end
         end
     end
@@ -87,6 +63,8 @@ function ScreenUI.draw_idle(G)
 end
 
 function ScreenUI.draw_node_menu(G)
+    -- PROTECCIÓN NIL INDEXING
+    if not G.focus.node_x or not G.focus.node_y then return end
     local node = G.grid_map[G.focus.node_x][G.focus.node_y]
     if not node then return end
     
@@ -108,8 +86,8 @@ function ScreenUI.draw_node_menu(G)
     screen.stroke()
     
     screen.level(15)
-    local val_px = node.level * 50
-    if node.level > 0 then
+    local val_px = (node.level or 0) * 50
+    if val_px > 0 then
         screen.rect(64, 32, val_px, 6)
     else
         screen.rect(64 + val_px, 32, math.abs(val_px), 6)
@@ -117,15 +95,16 @@ function ScreenUI.draw_node_menu(G)
     screen.fill()
     
     screen.move(10, 55)
-    screen.text("E2: " .. string.format("%.2f", node.level))
+    screen.text("E2: " .. string.format("%.2f", node.level or 0))
     
     if node.module == 8 and node.type == "in" then
         screen.move(118, 55)
-        screen.text_right("E3 PAN: " .. string.format("%.2f", node.pan))
+        screen.text_right("E3 PAN: " .. string.format("%.2f", node.pan or 0))
     end
 end
 
 function ScreenUI.draw_module_menu(G)
+    if not G.focus.module_id or not G.focus.page then return end
     local def = MenuDef[G.focus.module_id][G.focus.page]
     if not def then return end
 
@@ -135,7 +114,6 @@ function ScreenUI.draw_module_menu(G)
     screen.line(10, 14, 118, 14)
     screen.stroke()
 
-    -- Dibujar Encoders 1, 2, 3 (Izquierda)
     screen.level(4)
     if def.e1 then screen.move(2, 30); screen.text("E1"); screen.level(15); screen.move(20, 30); screen.text(params:string(def.e1)) end
     screen.level(4)
@@ -143,13 +121,11 @@ function ScreenUI.draw_module_menu(G)
     screen.level(4)
     if def.e3 then screen.move(2, 60); screen.text("E3"); screen.level(15); screen.move(20, 60); screen.text(params:string(def.e3)) end
 
-    -- Dibujar Encoder 4 (Fates) (Centro-Derecha Abajo)
     if def.e4 then 
         screen.level(4); screen.move(70, 60); screen.text("E4"); 
         screen.level(15); screen.move(88, 60); screen.text(params:string(def.e4)) 
     end
 
-    -- Dibujar Keys (Derecha)
     screen.level(4)
     if def.k2 then screen.move(126, 30); screen.text_right("K2: " .. params:string(def.k2)) end
     if def.k3 then screen.move(126, 45); screen.text_right("K3: " .. params:string(def.k3)) end
@@ -177,16 +153,21 @@ function ScreenUI.enc(G, n, d)
     elseif dt > 0.15 then accel = 0.1 end 
 
     if G.focus.state == "in" or G.focus.state == "out" then
+        -- PROTECCIÓN NIL INDEXING
+        if not G.focus.node_x or not G.focus.node_y then return end
         local node = G.grid_map[G.focus.node_x][G.focus.node_y]
+        if not node then return end
+        
         local Matrix = include('lib/matrix') 
         if n == 2 then
-            node.level = util.clamp(node.level + (d * 0.05 * accel), -1.0, 1.0)
+            node.level = util.clamp((node.level or 0) + (d * 0.05 * accel), -1.0, 1.0)
             Matrix.update_node_params(node)
         elseif n == 3 and node.module == 8 and node.type == "in" then
-            node.pan = util.clamp(node.pan + (d * 0.05 * accel), -1.0, 1.0)
+            node.pan = util.clamp((node.pan or 0) + (d * 0.05 * accel), -1.0, 1.0)
             Matrix.update_node_params(node)
         end
     elseif G.focus.state == "menu" then
+        if not G.focus.module_id or not G.focus.page then return end
         local def = MenuDef[G.focus.module_id][G.focus.page]
         if not def then return end
         
@@ -194,7 +175,7 @@ function ScreenUI.enc(G, n, d)
         if n == 1 then target_param = def.e1
         elseif n == 2 then target_param = def.e2
         elseif n == 3 then target_param = def.e3
-        elseif n == 4 then target_param = def.e4 end -- Soporte Fates
+        elseif n == 4 then target_param = def.e4 end 
         
         if target_param then
             if string.find(target_param, "tune") or string.find(target_param, "cutoff") then
@@ -208,6 +189,7 @@ end
 
 function ScreenUI.key(G, n, z)
     if z == 1 and G.focus.state == "menu" then
+        if not G.focus.module_id or not G.focus.page then return end
         local def = MenuDef[G.focus.module_id][G.focus.page]
         if not def then return end
         
@@ -217,7 +199,7 @@ function ScreenUI.key(G, n, z)
         
         if target_param then
             local p = params:lookup_param(target_param)
-            if p.type == "option" then
+            if p and p.type == "option" then
                 local current = params:get(target_param)
                 local next_val = current + 1
                 if next_val > #p.options then next_val = 1 end
