@@ -1,6 +1,7 @@
--- lib/screen_ui.lua v0.5
--- CHANGELOG v0.5:
--- 1. SEGURIDAD: Añadidas protecciones contra Nil Indexing en draw_node_menu y enc.
+-- lib/screen_ui.lua v0.6
+-- CHANGELOG v0.6:
+-- 1. FIX FATAL: Reemplazo de params:lookup_param (inexistente) por params:lookup.
+-- 2. SEGURIDAD: Añadida protección nil coalescing en la iteración de G.patch.
 
 local ScreenUI = {}
 
@@ -22,19 +23,21 @@ end
 function ScreenUI.draw_idle(G)
     screen.aa(1)
     screen.level(10)
-    for src_id, dests in pairs(G.patch) do
-        for dst_id, data in pairs(dests) do
-            if data.active then
-                local src_node = G.nodes[src_id]
-                local dst_node = G.nodes[dst_id]
-                if src_node and dst_node then
-                    local sx1, sy1 = grid_to_screen(src_node.x, src_node.y)
-                    local sx2, sy2 = grid_to_screen(dst_node.x, dst_node.y)
-                    screen.move(sx1, sy1)
-                    local cx = (sx1 + sx2) / 2
-                    local cy = math.max(sy1, sy2) + 10 
-                    screen.curve(sx1, sy1, cx, cy, sx2, sy2)
-                    screen.stroke()
+    if G.patch then
+        for src_id, dests in pairs(G.patch) do
+            for dst_id, data in pairs(dests) do
+                if data.active then
+                    local src_node = G.nodes[src_id]
+                    local dst_node = G.nodes[dst_id]
+                    if src_node and dst_node and src_node.type ~= "dummy" and dst_node.type ~= "dummy" then
+                        local sx1, sy1 = grid_to_screen(src_node.x, src_node.y)
+                        local sx2, sy2 = grid_to_screen(dst_node.x, dst_node.y)
+                        screen.move(sx1, sy1)
+                        local cx = (sx1 + sx2) / 2
+                        local cy = math.max(sy1, sy2) + 10 
+                        screen.curve(sx1, sy1, cx, cy, sx2, sy2)
+                        screen.stroke()
+                    end
                 end
             end
         end
@@ -45,7 +48,7 @@ function ScreenUI.draw_idle(G)
         for y = 1, 8 do
             local node = G.grid_map[x][y]
             local is_menu = (y == 4)
-            if node or is_menu then
+            if (node and node.type ~= "dummy") or is_menu then
                 local px, py = grid_to_screen(x, y)
                 local is_even = (math.ceil(x / 2) % 2 == 0)
                 screen.level(is_even and 4 or 2)
@@ -63,10 +66,9 @@ function ScreenUI.draw_idle(G)
 end
 
 function ScreenUI.draw_node_menu(G)
-    -- PROTECCIÓN NIL INDEXING
     if not G.focus.node_x or not G.focus.node_y then return end
     local node = G.grid_map[G.focus.node_x][G.focus.node_y]
-    if not node then return end
+    if not node or node.type == "dummy" then return end
     
     screen.level(15)
     screen.move(64, 10)
@@ -153,10 +155,9 @@ function ScreenUI.enc(G, n, d)
     elseif dt > 0.15 then accel = 0.1 end 
 
     if G.focus.state == "in" or G.focus.state == "out" then
-        -- PROTECCIÓN NIL INDEXING
         if not G.focus.node_x or not G.focus.node_y then return end
         local node = G.grid_map[G.focus.node_x][G.focus.node_y]
-        if not node then return end
+        if not node or node.type == "dummy" then return end
         
         local Matrix = include('lib/matrix') 
         if n == 2 then
@@ -198,8 +199,8 @@ function ScreenUI.key(G, n, z)
         elseif n == 3 then target_param = def.k3 end
         
         if target_param then
-            local p = params:lookup_param(target_param)
-            if p and p.type == "option" then
+            local p = params:lookup(target_param)
+            if p and p.options then
                 local current = params:get(target_param)
                 local next_val = current + 1
                 if next_val > #p.options then next_val = 1 end
