@@ -1,4 +1,4 @@
--- elianne.lua v0.1
+-- elianne.lua v0.1.1
 -- Motor Principal - Proyecto ELIANNE (Grado Científico)
 -- Arquitectura: Raspberry Pi 4 / Monome Norns / Grid 128
 
@@ -9,6 +9,7 @@ local GridUI = include('lib/grid_ui')
 local ScreenUI = include('lib/screen_ui')
 local Matrix = include('lib/matrix') 
 local Params = include('lib/params_setup') 
+local Storage = include('lib/storage')
 
 g = grid.connect()
 
@@ -42,6 +43,10 @@ function init()
         end
     end
     screen_metro:start()
+
+    -- Interceptar guardado/carga de Norns
+    params.action_write = function(filename, name, number) Storage.save(G, number) end
+    params.action_read = function(filename, silent, number) Storage.load(G, number) end
     
     print("ELIANNE: Sistema Forense Iniciado.")
 end
