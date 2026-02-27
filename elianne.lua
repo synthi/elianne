@@ -1,7 +1,8 @@
--- elianne.lua v0.6
--- CHANGELOG v0.6:
+-- elianne.lua v0.7
+-- CHANGELOG v0.7:
 -- 1. TELEMETRÍA: Inyección de logs de depuración extremos para rastreo de inicialización.
 -- 2. SEGURIDAD: Bloques pcall (protected call) en la inicialización para evitar cuelgues silenciosos.
+-- 3. FIX: Refuerzo de nil coalescing en la inicialización de G.node_levels.
 
 engine.name = 'Elianne'
 
@@ -38,12 +39,9 @@ print("ELIANNE DEBUG: Grid conectado.")
 local grid_metro
 local screen_metro
 
--- Inicialización segura de la tabla de respiración
-G.node_levels = {}
-for i = 1, 64 do G.node_levels[i] = 0 end
-
 osc.event = function(path, args, from)
     if path == '/elianne_levels' then
+        if not G.node_levels then G.node_levels = {} end
         for i = 1, 64 do
             G.node_levels[i] = args[i + 2] or 0
         end
