@@ -1,4 +1,4 @@
-// lib/Engine_Elianne.sc v0.3.4
+// lib/Engine_Elianne.sc v0.3.5
 // CHANGELOG v0.3:
 // 1. ARCHITECTURE: Matriz Universal de 64x64 Nodos (Permite conexiones In->In, Out->Out).
 // 2. DSP: Implementación completa de los 8 módulos con modelado físico extremo (Pi 4).
@@ -164,14 +164,18 @@ Engine_Elianne : CroneEngine {
             var clk_int = Impulse.ar(clk_rate);
             var clk_trig = clk_int + Schmidt.ar(clk_ext, 0.0, 0.1);
             
-            // Declarar variables vacías ANTES del código operacional
             var sh_src, rand_val, skewed, droop_env, step_out, slow_out;
             
             // --- CÓDIGO OPERACIONAL ---
-            noise1 = EQBand.ar(noise1, 1000, tilt1 * 12, 0.5);
-            noise2 = EQBand.ar(noise2, 1000, tilt2 * 12, 0.5);
             
-            sh_src = Select.ar(sig > 0.001, [noise1, sig]); 
+            // Filtro Tilt construido con Shelf estándar (Sin alucinaciones)
+            noise1 = BLowShelf.ar(noise1, 1000, 1.0, tilt1 * -12.0);
+            noise1 = BHiShelf.ar(noise1, 1000, 1.0, tilt1 * 12.0);
+            
+            noise2 = BLowShelf.ar(noise2, 1000, 1.0, tilt2 * -12.0);
+            noise2 = BHiShelf.ar(noise2, 1000, 1.0, tilt2 * 12.0);
+            
+            sh_src = Select.ar(sig > 0.001,[noise1, sig]); 
             
             rand_val = Latch.ar(sh_src, clk_trig);
             skewed = rand_val.sign * (rand_val.abs ** (2.0 ** prob_skew.neg));
