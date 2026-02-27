@@ -1,4 +1,4 @@
--- elianne.lua
+-- elianne.lua v0.1
 -- Motor Principal - Proyecto ELIANNE (Grado Científico)
 -- Arquitectura: Raspberry Pi 4 / Monome Norns / Grid 128
 
@@ -7,8 +7,8 @@ engine.name = 'Elianne'
 local G = include('lib/globals')
 local GridUI = include('lib/grid_ui')
 local ScreenUI = include('lib/screen_ui')
--- local Matrix = include('lib/matrix') -- Se implementará en la Fase 2
--- local Params = include('lib/params_setup') -- Se implementará en la Fase 2
+local Matrix = include('lib/matrix') 
+local Params = include('lib/params_setup') 
 
 g = grid.connect()
 
@@ -18,6 +18,8 @@ local screen_metro
 function init()
     -- Inicializar base de datos de nodos
     G.init_nodes()
+    Params.init(G)
+    Matrix.init(G)
     
     -- Inicializar caché del Grid
     GridUI.init(G)
