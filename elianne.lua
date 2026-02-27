@@ -1,8 +1,6 @@
--- elianne.lua v0.7
--- CHANGELOG v0.7:
--- 1. TELEMETRÍA: Inyección de logs de depuración extremos para rastreo de inicialización.
--- 2. SEGURIDAD: Bloques pcall (protected call) en la inicialización para evitar cuelgues silenciosos.
--- 3. FIX: Refuerzo de nil coalescing en la inicialización de G.node_levels.
+-- elianne.lua v0.8
+-- CHANGELOG v0.8:
+-- 1. FIX FATAL: Eliminado params:bang() para prevenir el colapso del búfer UDP (OSC Flood).
 
 engine.name = 'Elianne'
 
@@ -12,7 +10,6 @@ print("========================================")
 
 local G, GridUI, ScreenUI, Matrix, Params, Storage
 
--- Carga protegida de dependencias
 local function load_dependencies()
     G = include('lib/globals')
     print("ELIANNE DEBUG: globals.lua cargado.")
@@ -93,8 +90,8 @@ function init()
     end
     screen_metro:start()
     
-    print("ELIANNE DEBUG: 8. Sincronizando SC (params:bang)...")
-    params:bang()
+    -- ELIMINADO params:bang() AQUÍ. params:default() ya ha enviado los valores a SC.
+    -- Esto previene el UDP Flood que congelaba el sistema.
     
     print("========================================")
     print("ELIANNE DEBUG: BOOT COMPLETADO EXITOSAMENTE")
