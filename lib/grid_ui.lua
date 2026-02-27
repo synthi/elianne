@@ -1,4 +1,4 @@
--- lib/grid_ui.lua v0.2.1
+-- lib/grid_ui.lua v0.2.2
 -- CHANGELOG v0.2:
 -- 1. SEGURIDAD: Implementado temporizador de 1 segundo para desconectar cables.
 -- 2. PARCHEO: Conexión inmediata, desconexión retardada (Hold > 1s).
@@ -91,40 +91,58 @@ end
 function GridUI.redraw(G, g)
     if not g then return end
 
+    -- AUTO-HEAL (Inspirado en ncoco): Forzar limpieza de caché cada ~2 segundos
+    GridUI.refresh_counter = GridUI.refresh_counter + 1
+    if GridUI.refresh_counter > 60 then
+        for x = 1, 16 do for y = 1, 8 do GridUI.cache[x][y] = -1 end end
+        GridUI.refresh_counter = 0
+    end
+
     for x = 1, 16 do
         for y = 1, 8 do
             local b = 0
             local module_idx = math.ceil(x / 2)
             local is_even_module = (module_idx % 2 == 0)
-            local base_bright = is_even_module and 4 or 2
             
             local node = G.grid_map[x][y]
             local is_menu = (y == 4)
             
             if node or is_menu then
-                b = base_bright
+                -- RESPIRACIÓN: Calcular brillo base + modulación por audio
+                local base_bright = is_even_module and 4 or 2
+                local audio_mod = 0
                 
+                if node and G.node_levels then
+                    -- Escalar la amplitud (0.0 a 1.0) a niveles de brillo (0 a 6)
+                    audio_mod = math.floor(util.clamp(G.node_levels[node.id] * 10, 0, 6))
+                end
+                
+                b = util.clamp(base_bright + audio_mod, 0, 14) -- Tope en 14 para reservar el 15
+                
+                -- Iluminar si está presionado (Prioridad Absoluta)
                 for _, h in ipairs(GridUI.held_nodes) do
                     if h.x == x and h.y == y then
                         b = 15
                     end
                 end
                 
-                if node and G.focus.state == "idle" then
+                -- Iluminar conexiones activas en modo Idle
+                if node and G.focus.state == "idle" and b ~= 15 then
                     local has_connection = false
                     if node.type == "out" then
-                        for dst = 1, #G.nodes do
-                            if G.patch[node.id][dst].active then has_connection = true; break end
+                        for dst = 1, 64 do
+                            if G.patch[node.id] and G.patch[node.id][dst] and G.patch[node.id][dst].active then has_connection = true; break end
                         end
                     elseif node.type == "in" then
-                        for src = 1, #G.nodes do
-                            if G.patch[src][node.id].active then has_connection = true; break end
+                        for src = 1, 64 do
+                            if G.patch[src] and G.patch[src][node.id] and G.patch[src][node.id].active then has_connection = true; break end
                         end
                     end
-                    if has_connection then b = 10 end 
+                    if has_connection then b = math.max(b, 10) end 
                 end
             end
             
+            -- Caché Diferencial
             if GridUI.cache[x][y] ~= b then
                 g:led(x, y, b)
                 GridUI.cache[x][y] = b
