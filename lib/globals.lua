@@ -1,29 +1,28 @@
--- lib/globals.lua
--- Gestión de Estado y Topología de Hardware
+-- lib/globals.lua v0.2
+-- CHANGELOG v0.2:
+-- 1. FIX FATAL: Añadido 'return G' al final del archivo.
+-- 2. TOPOLOGÍA: Añadidos 2 Nodos Fantasma para sellar la matriz matemáticamente en 64x64.
 
 local G = {}
 
 G.screen_dirty = true
+G.node_levels = {}
+for i = 1, 64 do G.node_levels[i] = 0 end
 
--- Estado de Interacción (Hold-to-Patch / Menús)
 G.focus = {
-    state = "idle", -- "idle", "menu", "input", "output", "patching"
+    state = "idle",
     module_id = nil,
     page = nil,
     node_x = nil,
     node_y = nil,
     hold_time = 0,
-    target_x = nil, -- Para el parcheo bidireccional
+    target_x = nil,
     target_y = nil
 }
 
--- Matriz de Parcheo (Cables Virtuales)
--- patch[src_id][dst_id] = { active = boolean, level = float, pan = float }
 G.patch = {}
-
--- Base de datos de Nodos (Entradas y Salidas)
 G.nodes = {}
-G.grid_map = {} -- Mapeo rápido X,Y -> Nodo
+G.grid_map = {}
 
 function G.init_nodes()
     for x = 1, 16 do
@@ -35,7 +34,6 @@ function G.init_nodes()
 
     local node_id_counter = 1
 
-    -- Función auxiliar para registrar un nodo
     local function add_node(x, y, type, module_idx, name)
         local id = node_id_counter
         local node = {
@@ -49,7 +47,7 @@ function G.init_nodes()
         return id
     end
 
-    -- MÓDULO 1: 1004-T (A) [Cols 1-2]
+    -- MÓDULO 1: 1004-T (A) [IDs 1-8]
     add_node(1, 1, "in", 1, "FM 1 In")
     add_node(2, 1, "in", 1, "FM 2 In")
     add_node(1, 2, "in", 1, "PWM In")
@@ -59,7 +57,7 @@ function G.init_nodes()
     add_node(1, 7, "out", 1, "Sine Out")
     add_node(2, 7, "out", 1, "Pulse Out")
 
-    -- MÓDULO 2: 1004-T (B) [Cols 3-4]
+    -- MÓDULO 2: 1004-T (B) [IDs 9-16]
     add_node(3, 1, "in", 2, "FM 1 In")
     add_node(4, 1, "in", 2, "FM 2 In")
     add_node(3, 2, "in", 2, "PWM In")
@@ -69,7 +67,7 @@ function G.init_nodes()
     add_node(3, 7, "out", 2, "Sine Out")
     add_node(4, 7, "out", 2, "Pulse Out")
 
-    -- MÓDULO 3: 1023 Dual VCO [Cols 5-6]
+    -- MÓDULO 3: 1023 Dual VCO[IDs 17-24]
     add_node(5, 1, "in", 3, "FM 1 In")
     add_node(6, 1, "in", 3, "FM 2 In")
     add_node(5, 2, "in", 3, "PWM/VOct 1 In")
@@ -79,7 +77,7 @@ function G.init_nodes()
     add_node(5, 7, "out", 3, "Inv 1 Out")
     add_node(6, 7, "out", 3, "Inv 2 Out")
 
-    -- MÓDULO 4: 1016/36 Noise/Random [Cols 7-8]
+    -- MÓDULO 4: 1016/36 Noise/Random [IDs 25-30]
     add_node(7, 1, "in", 4, "S&H Sig In")
     add_node(8, 1, "in", 4, "Clock In")
     add_node(7, 6, "out", 4, "Noise 1 Out")
@@ -87,7 +85,7 @@ function G.init_nodes()
     add_node(7, 7, "out", 4, "Slow Rand Out")
     add_node(8, 7, "out", 4, "S&H Step Out")
 
-    -- MÓDULO 5: 1005 ModAmp [Cols 9-10]
+    -- MÓDULO 5: 1005 ModAmp[IDs 31-38]
     add_node(9, 1, "in", 5, "Carrier In")
     add_node(10, 1, "in", 5, "Modulator In")
     add_node(9, 2, "in", 5, "VCA CV In")
@@ -97,7 +95,7 @@ function G.init_nodes()
     add_node(9, 7, "out", 5, "Sum (Upper) Out")
     add_node(10, 7, "out", 5, "Diff (Lower) Out")
 
-    -- MÓDULO 6: 1047 (A) [Cols 11-12]
+    -- MÓDULO 6: 1047 (A) [IDs 39-46]
     add_node(11, 1, "in", 6, "Audio In")
     add_node(12, 1, "in", 6, "Freq CV 1 In")
     add_node(11, 2, "in", 6, "Resonance CV In")
@@ -107,7 +105,7 @@ function G.init_nodes()
     add_node(11, 7, "out", 6, "High Pass Out")
     add_node(12, 7, "out", 6, "Notch Out")
 
-    -- MÓDULO 7: 1047 (B) [Cols 13-14]
+    -- MÓDULO 7: 1047 (B) [IDs 47-54]
     add_node(13, 1, "in", 7, "Audio In")
     add_node(14, 1, "in", 7, "Freq CV 1 In")
     add_node(13, 2, "in", 7, "Resonance CV In")
@@ -117,7 +115,7 @@ function G.init_nodes()
     add_node(13, 7, "out", 7, "High Pass Out")
     add_node(14, 7, "out", 7, "Notch Out")
 
-    -- MÓDULO 8: NEXUS[Cols 15-16]
+    -- MÓDULO 8: NEXUS [IDs 55-62]
     add_node(15, 1, "in", 8, "Modular In L")
     add_node(16, 1, "in", 8, "Modular In R")
     add_node(15, 2, "in", 8, "ADC In L")
@@ -127,10 +125,13 @@ function G.init_nodes()
     add_node(15, 7, "out", 8, "Tape Send L")
     add_node(16, 7, "out", 8, "Tape Send R")
 
-    -- Inicializar Matriz de Parcheo (Todos con Todos)
-    for src = 1, node_id_counter do
+    -- NODOS FANTASMA (Para completar 64)[IDs 63-64]
+    add_node(16, 8, "dummy", 8, "Dummy 1")
+    add_node(16, 8, "dummy", 8, "Dummy 2")
+
+    for src = 1, 64 do
         G.patch[src] = {}
-        for dst = 1, node_id_counter do
+        for dst = 1, 64 do
             G.patch[src][dst] = { active = false, level = 1.0, pan = 0.0 }
         end
     end
