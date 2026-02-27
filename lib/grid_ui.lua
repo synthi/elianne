@@ -1,9 +1,12 @@
--- lib/grid_ui.lua
--- Motor de Interfaz Táctil y Caché Diferencial
+-- lib/grid_ui.lua v0.2
+-- CHANGELOG v0.2:
+-- 1. SEGURIDAD: Implementado temporizador de 1 segundo para desconectar cables.
+-- 2. PARCHEO: Conexión inmediata, desconexión retardada (Hold > 1s).
 
 local GridUI = {}
 GridUI.cache = {}
-GridUI.held_nodes = {} -- Rastrea qué nodos están presionados simultáneamente
+GridUI.held_nodes = {} 
+GridUI.disconnect_timer = nil -- Variable para almacenar la corrutina del temporizador
 
 function GridUI.init(G)
     for x = 1, 16 do
@@ -19,18 +22,15 @@ function GridUI.key(G, g, x, y, z)
     local is_menu = (y == 4)
 
     if z == 1 then
-        -- Registrar pulsación
         table.insert(GridUI.held_nodes, {x=x, y=y, time=util.time(), node=node, is_menu=is_menu})
         
         if is_menu then
-            -- Abrir Menú de Módulo
             local module_idx = math.ceil(x / 2)
             local page = (x % 2 == 1) and "A" or "B"
             G.focus.state = "menu"
             G.focus.module_id = module_idx
             G.focus.page = page
         elseif node then
-            -- Abrir Menú de Nodo (Attenuverter)
             G.focus.state = node.type
             G.focus.node_x = x
             G.focus.node_y = y
@@ -41,23 +41,37 @@ function GridUI.key(G, g, x, y, z)
                 local n2 = GridUI.held_nodes[2].node
                 
                 if n1 and n2 and n1.type ~= n2.type then
-                    -- Tenemos un In y un Out presionados
                     local src = (n1.type == "out") and n1 or n2
                     local dst = (n1.type == "in") and n1 or n2
+                    local Matrix = include('lib/matrix')
                     
-                    -- Toggle Conexión
-                    local current_state = G.patch[src.id][dst.id].active
-                    G.patch[src.id][dst.id].active = not current_state
-                    
-                    -- Enviar actualización de la fila de destino a SuperCollider
-                    Matrix.update_destination(dst.id, G)
+                    if G.patch[src.id][dst.id].active then
+                        -- Ya están conectados: Iniciar temporizador de desconexión (1 segundo)
+                        GridUI.disconnect_timer = clock.run(function()
+                            clock.sleep(1.0)
+                            G.patch[src.id][dst.id].active = false
+                            Matrix.update_destination(dst.id, G)
+                            G.screen_dirty = true
+                            print("ELIANNE: Cable desconectado.")
+                        end)
+                    else
+                        -- No están conectados: Conectar inmediatamente
+                        G.patch[src.id][dst.id].active = true
+                        Matrix.update_destination(dst.id, G)
+                        print("ELIANNE: Cable conectado.")
+                    end
                     
                     G.focus.state = "patching"
                 end
             end
         end
     elseif z == 0 then
-        -- Eliminar de la lista de presionados
+        -- Si se suelta un botón, cancelar el temporizador de desconexión si estaba corriendo
+        if GridUI.disconnect_timer then
+            clock.cancel(GridUI.disconnect_timer)
+            GridUI.disconnect_timer = nil
+        end
+
         for i, h in ipairs(GridUI.held_nodes) do
             if h.x == x and h.y == y then
                 table.remove(GridUI.held_nodes, i)
@@ -65,7 +79,6 @@ function GridUI.key(G, g, x, y, z)
             end
         end
         
-        -- Si no hay nada presionado, volver a Idle
         if #GridUI.held_nodes == 0 then
             G.focus.state = "idle"
         end
@@ -82,8 +95,6 @@ function GridUI.redraw(G, g)
             local b = 0
             local module_idx = math.ceil(x / 2)
             local is_even_module = (module_idx % 2 == 0)
-            
-            -- Patrón Cebra Base
             local base_bright = is_even_module and 4 or 2
             
             local node = G.grid_map[x][y]
@@ -92,16 +103,13 @@ function GridUI.redraw(G, g)
             if node or is_menu then
                 b = base_bright
                 
-                -- Iluminar si está presionado
                 for _, h in ipairs(GridUI.held_nodes) do
                     if h.x == x and h.y == y then
                         b = 15
                     end
                 end
                 
-                -- Iluminar conexiones activas si estamos en modo Idle o Patching
                 if node and G.focus.state == "idle" then
-                    -- Comprobar si el nodo tiene alguna conexión activa
                     local has_connection = false
                     if node.type == "out" then
                         for dst = 1, #G.nodes do
@@ -112,11 +120,10 @@ function GridUI.redraw(G, g)
                             if G.patch[src][node.id].active then has_connection = true; break end
                         end
                     end
-                    if has_connection then b = 10 end -- Brillo de conexión activa
+                    if has_connection then b = 10 end 
                 end
             end
             
-            -- Caché Diferencial (Solo envía si cambió)
             if GridUI.cache[x][y] ~= b then
                 g:led(x, y, b)
                 GridUI.cache[x][y] = b
