@@ -1,7 +1,8 @@
--- lib/grid_ui.lua v0.2
+-- lib/grid_ui.lua v0.2.1
 -- CHANGELOG v0.2:
 -- 1. SEGURIDAD: Implementado temporizador de 1 segundo para desconectar cables.
 -- 2. PARCHEO: Conexión inmediata, desconexión retardada (Hold > 1s).
+GridUI.refresh_counter = 0
 
 local GridUI = {}
 GridUI.cache = {}
@@ -132,5 +133,6 @@ function GridUI.redraw(G, g)
     end
     g:refresh()
 end
+
 
 return GridUI
