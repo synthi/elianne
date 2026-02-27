@@ -49,8 +49,8 @@ function GridUI.key(G, g, x, y, z)
                     local current_state = G.patch[src.id][dst.id].active
                     G.patch[src.id][dst.id].active = not current_state
                     
-                    -- Aquí enviaremos el comando OSC a SuperCollider (Fase 2)
-                    -- Matrix.update_connection(src.id, dst.id, G)
+                    -- Enviar actualización de la fila de destino a SuperCollider
+                    Matrix.update_destination(dst.id, G)
                     
                     G.focus.state = "patching"
                 end
