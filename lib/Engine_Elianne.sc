@@ -1,4 +1,4 @@
-// lib/Engine_Elianne.sc v0.3.5
+// lib/Engine_Elianne.sc v0.3.6
 // CHANGELOG v0.3:
 // 1. ARCHITECTURE: Matriz Universal de 64x64 Nodos (Permite conexiones In->In, Out->Out).
 // 2. DSP: Implementación completa de los 8 módulos con modelado físico extremo (Pi 4).
@@ -243,7 +243,6 @@ Engine_Elianne : CroneEngine {
         // SYNTH 6 & 7: ARP 1047 (Multimode Filter / Resonator)
         // =====================================================================
         SynthDef(\Elianne_1047, {
-            // 1. ARGUMENTOS (Incluyendo jfet=1.5)
             arg in_aud, in_cv1, in_res, in_cv2,
                 out_lp, out_bp, out_hp, out_notch,
                 lvl_aud, lvl_cv1, lvl_res, lvl_cv2,
@@ -251,14 +250,14 @@ Engine_Elianne : CroneEngine {
                 cutoff=1000, fine=0, q=1, notch_ofs=0, final_q=2, out_lvl=1,
                 cv2_mode=0, range=0, jfet=1.5, phys_bus;
                 
-            // 2. DECLARACIÓN ESTRICTA DE VARIABLES (Fase 1)
+            // 1. DECLARACIÓN ESTRICTA DE VARIABLES
             var aud, cv1, res_cv, cv2, p_shift;
             var ping_trig, ping_env, cv2_mod;
             var base_f, f_mod, q_mod;
-            var drive_aud, svf, lp, bp, hp;
-            var notch_f, notch_svf, notch;
+            var drive_aud, lp, bp, hp;
+            var notch_f, notch_svf_lp, notch_svf_hp, notch;
             
-            // 3. CÓDIGO OPERACIONAL (Fase 2)
+            // 2. CÓDIGO OPERACIONAL
             aud = In.ar(in_aud) * In.kr(lvl_aud);
             cv1 = In.ar(in_cv1) * In.kr(lvl_cv1);
             res_cv = In.ar(in_res) * In.kr(lvl_res);
@@ -270,21 +269,23 @@ Engine_Elianne : CroneEngine {
             ping_env = EnvGen.ar(Env.perc(0.001, final_q * 0.1), ping_trig);
             cv2_mod = cv2 * (1 - cv2_mode);
             
-            base_f = Select.kr(range, [cutoff, cutoff * 0.01]);
+            base_f = Select.kr(range,[cutoff, cutoff * 0.01]);
             f_mod = (base_f + fine + (cv1 * 1000) + (cv2_mod * 1000) + (ping_env * p_shift * 1000)).clip(10, 20000);
             q_mod = (q + (res_cv * 10) + (ping_env * 500)).clip(0.1, 500);
             
-            // SVF Core con pre-saturación JFET
+            // Pre-saturación JFET
             drive_aud = (aud * jfet).tanh;
-            svf = SVF.ar(drive_aud, f_mod, q_mod, 1, 1, 1, 0, 0);
-            lp = svf[0];
-            bp = svf[1];
-            hp = svf[2];
             
-            // Notch Asimétrico Analógico
+            // Instanciación individual de SVF para cada salida (Sintaxis: in, freq, res, lp, bp, hp, notch, peak)
+            lp = SVF.ar(drive_aud, f_mod, q_mod, 1, 0, 0, 0, 0);
+            bp = SVF.ar(drive_aud, f_mod, q_mod, 0, 1, 0, 0, 0);
+            hp = SVF.ar(drive_aud, f_mod, q_mod, 0, 0, 1, 0, 0);
+            
+            // Notch Asimétrico Analógico (Suma de LP y HP con tolerancia)
             notch_f = f_mod * (2.0 ** (notch_ofs * 3.0));
-            notch_svf = SVF.ar(drive_aud, notch_f, q_mod, 1, 0, 1, 0, 0);
-            notch = notch_svf[0] + (notch_svf[2] * 0.985); // Tolerancia de resistencia
+            notch_svf_lp = SVF.ar(drive_aud, notch_f, q_mod, 1, 0, 0, 0, 0);
+            notch_svf_hp = SVF.ar(drive_aud, notch_f, q_mod, 0, 0, 1, 0, 0);
+            notch = notch_svf_lp + (notch_svf_hp * 0.985); 
             
             // Salidas
             Out.ar(out_lp, lp * out_lvl * In.kr(lvl_lp));
