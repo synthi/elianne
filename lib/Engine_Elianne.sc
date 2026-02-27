@@ -1,4 +1,4 @@
-// lib/Engine_Elianne.sc v0.3.2
+// lib/Engine_Elianne.sc v0.3.3
 // CHANGELOG v0.3:
 // 1. ARCHITECTURE: Matriz Universal de 64x64 Nodos (Permite conexiones In->In, Out->Out).
 // 2. DSP: Implementación completa de los 8 módulos con modelado físico extremo (Pi 4).
@@ -151,7 +151,6 @@ Engine_Elianne : CroneEngine {
             var clk_ext = In.ar(in_clk) * In.kr(lvl_clk);
             var droop_amt = In.kr(phys_bus + 1);
             
-            // Generadores de Ruido
             var n_pink = PinkNoise.ar;
             var n_white = WhiteNoise.ar;
             var n_crackle = Crackle.ar(1.9);
@@ -162,24 +161,25 @@ Engine_Elianne : CroneEngine {
             var noise1 = Select.ar(type1,[n_pink, n_white, n_crackle, n_rain, n_lorenz, n_grit]);
             var noise2 = Select.ar(type2,[n_pink, n_white, n_crackle, n_rain, n_lorenz, n_grit]);
             
-            // Filtros Tilt
+            var clk_int = Impulse.ar(clk_rate);
+            var clk_trig = clk_int + Schmidt.ar(clk_ext, 0.0, 0.1);
+            
+            // Declarar variables vacías ANTES del código operacional
+            var sh_src, rand_val, skewed, droop_env, step_out, slow_out;
+            
+            // --- CÓDIGO OPERACIONAL ---
             noise1 = EQBand.ar(noise1, 1000, tilt1 * 12, 0.5);
             noise2 = EQBand.ar(noise2, 1000, tilt2 * 12, 0.5);
             
-            // Reloj y S&H
-            var clk_int = Impulse.ar(clk_rate);
-            var clk_trig = clk_int + Schmidt.ar(clk_ext, 0.0, 0.1);
-            var sh_src = Select.ar(sig > 0.001, [noise1, sig]); // Normalizado a Noise 1
+            sh_src = Select.ar(sig > 0.001, [noise1, sig]); 
             
-            // Probability Skew (Buchla 266)
-            var rand_val = Latch.ar(sh_src, clk_trig);
-            var skewed = rand_val.sign * (rand_val.abs ** (2.0 ** prob_skew.neg));
+            rand_val = Latch.ar(sh_src, clk_trig);
+            skewed = rand_val.sign * (rand_val.abs ** (2.0 ** prob_skew.neg));
             
-            // Capacitor Droop
-            var droop_env = EnvGen.ar(Env([1, 0], [10]), clk_trig);
-            var step_out = Lag.ar(skewed * (1.0 - (droop_amt * (1.0 - droop_env))), glide);
+            droop_env = EnvGen.ar(Env([1, 0], [10]), clk_trig);
+            step_out = Lag.ar(skewed * (1.0 - (droop_amt * (1.0 - droop_env))), glide);
             
-            var slow_out = LFNoise2.ar(slow_rate);
+            slow_out = LFNoise2.ar(slow_rate);
             slow_out = slow_out.sign * (slow_out.abs ** (2.0 ** prob_skew.neg));
             
             Out.ar(out_n1, noise1 * In.kr(lvl_n1));
@@ -289,36 +289,44 @@ Engine_Elianne : CroneEngine {
                 pan_ml, pan_mr, pan_al, pan_ar,
                 lvl_oml, lvl_omr, lvl_otl, lvl_otr,
                 cut_l=20000, cut_r=20000, res=0, tape_time=0.3, tape_fb=0.4, tape_mix=0.2,
-                filt_byp=0, adc_mon=0, tape_mute=0, phys_bus;
+                filt_byp=0, adc_mon=0, tape_mute=0, drive=1.0, phys_bus;
                 
-            var ml = Pan2.ar(In.ar(in_ml) * In.kr(lvl_ml), In.kr(pan_ml));
-            var mr = Pan2.ar(In.ar(in_mr) * In.kr(lvl_mr), In.kr(pan_mr));
-            var adc = SoundIn.ar([0, 1]);
-            var al = Pan2.ar(adc[0] * In.kr(lvl_al), In.kr(pan_al));
-            var ar = Pan2.ar(adc[1] * In.kr(lvl_ar), In.kr(pan_ar));
+            // 1. DECLARACIÓN ESTRICTA DE VARIABLES AL PRINCIPIO
+            var ml, mr, adc, al, ar, sum;
+            var filt_l, filt_r, filt_sig;
+            var wow_amt, flut_amt, tape_in, wow, flutter, tape_dt, tape_out;
+            var master, final_out;
             
-            var sum = (ml + mr + al + ar) * drive;
+            // 2. CÓDIGO OPERACIONAL
+            ml = Pan2.ar(In.ar(in_ml) * In.kr(lvl_ml), In.kr(pan_ml));
+            mr = Pan2.ar(In.ar(in_mr) * In.kr(lvl_mr), In.kr(pan_mr));
+            adc = SoundIn.ar([0, 1]);
+            al = Pan2.ar(adc[0] * In.kr(lvl_al), In.kr(pan_al));
+            ar = Pan2.ar(adc[1] * In.kr(lvl_ar), In.kr(pan_ar));
+            
+            sum = (ml + mr + al + ar) * drive;
             
             // Filtros 1006 (Moog Ladder 24dB)
-            var filt_l = MoogFF.ar(sum[0], cut_l, res);
-            var filt_r = MoogFF.ar(sum[1], cut_r, res);
-            var filt_sig = Select.ar(filt_byp, [[filt_l, filt_r], sum]);
+            filt_l = MoogFF.ar(sum[0], cut_l, res);
+            filt_r = MoogFF.ar(sum[1], cut_r, res);
+            filt_sig = Select.ar(filt_byp, [[filt_l, filt_r], sum]);
             
             // Tape Echo
-            var wow_amt = In.kr(phys_bus + 5);
-            var flut_amt = In.kr(phys_bus + 6);
-            var tape_in = filt_sig + (LocalIn.ar(2) * tape_fb);
-            var wow = LFNoise2.kr(0.5) * wow_amt * 0.05;
-            var flutter = LFNoise1.kr(15) * flut_amt * 0.005;
-            var tape_dt = (tape_time + wow + flutter).clip(0.01, 2.0);
-            var tape_out = DelayC.ar(tape_in, 2.0, tape_dt);
+            wow_amt = In.kr(phys_bus + 5);
+            flut_amt = In.kr(phys_bus + 6);
+            tape_in = filt_sig + (LocalIn.ar(2) * tape_fb);
+            wow = LFNoise2.kr(0.5) * wow_amt * 0.05;
+            flutter = LFNoise1.kr(15) * flut_amt * 0.005;
+            tape_dt = (tape_time + wow + flutter).clip(0.01, 2.0);
+            tape_out = DelayC.ar(tape_in, 2.0, tape_dt);
             tape_out = (tape_out * 1.2).tanh; // Saturación de cinta
-            LocalOut.ar(tape_out);
+            
+            LocalOut.ar(tape_out); // Operación que antes causaba el error si había un 'var' después
             
             // Mezcla Final
-            var master = (filt_sig * (1.0 - tape_mix)) + (tape_out * tape_mix);
+            master = (filt_sig * (1.0 - tape_mix)) + (tape_out * tape_mix);
             master = master * (1.0 - tape_mute);
-            var final_out = master + (adc * adc_mon);
+            final_out = master + (adc * adc_mon);
             
             Out.ar(out_ml, final_out[0] * In.kr(lvl_oml));
             Out.ar(out_mr, final_out[1] * In.kr(lvl_omr));
