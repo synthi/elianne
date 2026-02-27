@@ -1,13 +1,28 @@
--- lib/matrix.lua v0.22
--- CHANGELOG v0.22:
--- 1. FIX FATAL: Eliminada la asunción de índices rígidos (i <= 32).
--- 2. MAPEO: Los IDs de nodo se envían directamente a SC, coincidiendo con la matriz plana de 64 buses.
+-- lib/matrix.lua v0.24
+-- CHANGELOG v0.24:
+-- 1. FIX FATAL: Eliminado update_destination y el desempaquetado de 64 argumentos.
+-- 2. ARQUITECTURA: Implementadas funciones connect/disconnect basadas en Deltas.
 
 local Matrix = {}
 
+function Matrix.connect(src_id, dst_id, G)
+    G.patch[src_id][dst_id].active = true
+    engine.patch_set(dst_id, src_id, 1.0)
+end
+
+function Matrix.disconnect(src_id, dst_id, G)
+    G.patch[src_id][dst_id].active = false
+    engine.patch_set(dst_id, src_id, 0.0)
+end
+
 function Matrix.init(G)
-    for dst_id = 1, 64 do
-        Matrix.update_destination(dst_id, G)
+    -- Enviar solo las conexiones activas para evitar UDP Flood
+    for src_id = 1, 64 do
+        for dst_id = 1, 64 do
+            if G.patch[src_id] and G.patch[src_id][dst_id] and G.patch[src_id][dst_id].active then
+                engine.patch_set(dst_id, src_id, 1.0)
+            end
+        end
     end
     
     for i = 1, 64 do
@@ -21,7 +36,6 @@ function Matrix.init(G)
             elseif node.type == "in" then
                 engine.set_in_level(i, lvl)
                 
-                -- Paneo exclusivo para las entradas del Nexus (IDs 55 a 58)
                 if node.module == 8 and i >= 55 and i <= 58 then
                     local pan = params:get("node_pan_" .. i)
                     node.pan = pan
@@ -32,20 +46,6 @@ function Matrix.init(G)
     end
     
     print("ELIANNE: Matriz DSP y Niveles Inicializados al 100%.")
-end
-
-function Matrix.update_destination(dst_id, G)
-    local row_data = {}
-    
-    for src_id = 1, 64 do
-        if G.patch[src_id] and G.patch[src_id][dst_id] and G.patch[src_id][dst_id].active then
-            table.insert(row_data, 1.0)
-        else
-            table.insert(row_data, 0.0)
-        end
-    end
-    
-    engine.patch_row(dst_id, table.unpack(row_data))
 end
 
 function Matrix.update_node_params(node)
