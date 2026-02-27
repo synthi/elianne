@@ -1,10 +1,10 @@
--- lib/grid_ui.lua v0.3
--- CHANGELOG v0.3:
+-- lib/grid_ui.lua v0.4
+-- CHANGELOG v0.4:
 -- 1. SINTAXIS: Declaración local estricta al inicio.
 -- 2. CORRUTINAS: Auto-anulación de disconnect_timer para evitar errores de hilo muerto.
 -- 3. UI: Integración segura de la respiración OSC.
 
-local GridUI = {} -- DECLARACIÓN OBLIGATORIA ANTES DE ASIGNAR PROPIEDADES
+local GridUI = {}
 
 GridUI.cache = {}
 GridUI.held_nodes = {} 
@@ -33,7 +33,7 @@ function GridUI.key(G, g, x, y, z)
             G.focus.state = "menu"
             G.focus.module_id = module_idx
             G.focus.page = page
-        elseif node then
+        elseif node and node.type ~= "dummy" then
             G.focus.state = node.type
             G.focus.node_x = x
             G.focus.node_y = y
@@ -42,7 +42,7 @@ function GridUI.key(G, g, x, y, z)
                 local n1 = GridUI.held_nodes[1].node
                 local n2 = GridUI.held_nodes[2].node
                 
-                if n1 and n2 and n1.type ~= n2.type then
+                if n1 and n2 and n1.type ~= n2.type and n1.type ~= "dummy" and n2.type ~= "dummy" then
                     local src = (n1.type == "out") and n1 or n2
                     local dst = (n1.type == "in") and n1 or n2
                     local Matrix = include('lib/matrix')
@@ -54,7 +54,7 @@ function GridUI.key(G, g, x, y, z)
                             Matrix.update_destination(dst.id, G)
                             G.screen_dirty = true
                             print("ELIANNE: Cable desconectado.")
-                            GridUI.disconnect_timer = nil -- AUTO-ANULACIÓN DEL HILO
+                            GridUI.disconnect_timer = nil
                         end)
                     else
                         G.patch[src.id][dst.id].active = true
@@ -67,7 +67,6 @@ function GridUI.key(G, g, x, y, z)
             end
         end
     elseif z == 0 then
-        -- Cancelación segura de corrutina
         if GridUI.disconnect_timer then
             clock.cancel(GridUI.disconnect_timer)
             GridUI.disconnect_timer = nil
@@ -106,11 +105,10 @@ function GridUI.redraw(G, g)
             local node = G.grid_map[x][y]
             local is_menu = (y == 4)
             
-            if node or is_menu then
+            if (node and node.type ~= "dummy") or is_menu then
                 local base_bright = is_even_module and 4 or 2
                 local audio_mod = 0
                 
-                -- Lectura segura de la tabla de respiración
                 if node and G.node_levels and G.node_levels[node.id] then
                     audio_mod = math.floor(util.clamp(G.node_levels[node.id] * 10, 0, 6))
                 end
