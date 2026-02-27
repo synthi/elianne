@@ -1,18 +1,39 @@
--- elianne.lua v0.5
--- CHANGELOG v0.5:
--- 1. INIT: Orden de inicialización estricto (Nodos -> Params -> Default -> Matrix -> Bang).
--- 2. OSC: Tabla G.node_levels inicializada de forma segura.
+-- elianne.lua v0.6
+-- CHANGELOG v0.6:
+-- 1. TELEMETRÍA: Inyección de logs de depuración extremos para rastreo de inicialización.
+-- 2. SEGURIDAD: Bloques pcall (protected call) en la inicialización para evitar cuelgues silenciosos.
 
 engine.name = 'Elianne'
 
-local G = include('lib/globals')
-local GridUI = include('lib/grid_ui')
-local ScreenUI = include('lib/screen_ui')
-local Matrix = include('lib/matrix')
-local Params = include('lib/params_setup')
-local Storage = include('lib/storage')
+print("========================================")
+print("ELIANNE DEBUG: INICIANDO CARGA DE MÓDULOS")
+print("========================================")
+
+local G, GridUI, ScreenUI, Matrix, Params, Storage
+
+-- Carga protegida de dependencias
+local function load_dependencies()
+    G = include('lib/globals')
+    print("ELIANNE DEBUG: globals.lua cargado.")
+    GridUI = include('lib/grid_ui')
+    print("ELIANNE DEBUG: grid_ui.lua cargado.")
+    ScreenUI = include('lib/screen_ui')
+    print("ELIANNE DEBUG: screen_ui.lua cargado.")
+    Matrix = include('lib/matrix')
+    print("ELIANNE DEBUG: matrix.lua cargado.")
+    Params = include('lib/params_setup')
+    print("ELIANNE DEBUG: params_setup.lua cargado.")
+    Storage = include('lib/storage')
+    print("ELIANNE DEBUG: storage.lua cargado.")
+end
+
+local status, err = pcall(load_dependencies)
+if not status then
+    print("ELIANNE FATAL ERROR (Dependencias): " .. err)
+end
 
 g = grid.connect()
+print("ELIANNE DEBUG: Grid conectado.")
 
 local grid_metro
 local screen_metro
@@ -31,24 +52,34 @@ osc.event = function(path, args, from)
 end
 
 function init()
-    -- 1. Estructuras de Datos
-    G.init_nodes()
+    print("========================================")
+    print("ELIANNE DEBUG: INICIANDO BOOT SEQUENCE")
+    print("========================================")
     
-    -- 2. Registro de Parámetros
-    Params.init(G)
+    print("ELIANNE DEBUG: 1. Inicializando Nodos (G.init_nodes)...")
+    local s1, e1 = pcall(G.init_nodes)
+    if not s1 then print("ERROR EN NODOS: " .. e1) end
     
-    -- 3. Cargar valores guardados (PSET)
+    print("ELIANNE DEBUG: 2. Registrando Parámetros (Params.init)...")
+    local s2, e2 = pcall(Params.init, G)
+    if not s2 then print("ERROR EN PARAMS: " .. e2) end
+    
+    print("ELIANNE DEBUG: 3. Cargando PSET por defecto (params:default)...")
     params:default()
     
-    -- 4. Inicializar Matriz y UI (Ahora pueden leer los params cargados)
-    Matrix.init(G)
-    GridUI.init(G)
+    print("ELIANNE DEBUG: 4. Inicializando Matriz DSP (Matrix.init)...")
+    local s3, e3 = pcall(Matrix.init, G)
+    if not s3 then print("ERROR EN MATRIZ: " .. e3) end
     
-    -- 5. Interceptar guardado/carga
+    print("ELIANNE DEBUG: 5. Inicializando UI del Grid (GridUI.init)...")
+    local s4, e4 = pcall(GridUI.init, G)
+    if not s4 then print("ERROR EN GRID UI: " .. e4) end
+    
+    print("ELIANNE DEBUG: 6. Configurando interceptores de guardado...")
     params.action_write = function(filename, name, number) Storage.save(G, number) end
     params.action_read = function(filename, silent, number) Storage.load(G, number) end
     
-    -- 6. Iniciar Temporizadores
+    print("ELIANNE DEBUG: 7. Iniciando Metros (Grid y Pantalla)...")
     grid_metro = metro.init()
     grid_metro.time = 1/30
     grid_metro.event = function() GridUI.redraw(G, g) end
@@ -64,10 +95,12 @@ function init()
     end
     screen_metro:start()
     
-    -- 7. Sincronizar SuperCollider con los valores actuales
+    print("ELIANNE DEBUG: 8. Sincronizando SC (params:bang)...")
     params:bang()
     
-    print("ELIANNE: Sistema Forense Iniciado.")
+    print("========================================")
+    print("ELIANNE DEBUG: BOOT COMPLETADO EXITOSAMENTE")
+    print("========================================")
 end
 
 function enc(n, d)
@@ -91,6 +124,7 @@ function redraw()
 end
 
 function cleanup()
+    print("ELIANNE DEBUG: Ejecutando Cleanup...")
     if grid_metro then grid_metro:stop() end
     if screen_metro then screen_metro:stop() end
 end
