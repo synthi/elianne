@@ -1,4 +1,4 @@
-// lib/Engine_Elianne.sc v0.3.1
+// lib/Engine_Elianne.sc v0.3.2
 // CHANGELOG v0.3:
 // 1. ARCHITECTURE: Matriz Universal de 64x64 Nodos (Permite conexiones In->In, Out->Out).
 // 2. DSP: Implementación completa de los 8 módulos con modelado físico extremo (Pi 4).
@@ -40,6 +40,11 @@ Engine_Elianne : CroneEngine {
         // =====================================================================
         SynthDef(\Elianne_Matrix, {
             var tx = InFeedback.ar(bus_nodes_tx.index, 64);
+            var amps = Amplitude.kr(tx, 0.05, 0.1); // Medidor de envolvente para los 64 nodos
+            
+            // Enviar niveles a Lua a 15Hz para la respiración del Grid
+            SendReply.kr(Impulse.kr(15), '/elianne_levels', amps);
+            
             64.do { |dst_idx|
                 var row_gains = NamedControl.kr(("row_" ++ (dst_idx + 1)).asSymbol, 0 ! 64);
                 var sum = (tx * row_gains).sum;
