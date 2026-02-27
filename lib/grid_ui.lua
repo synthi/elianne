@@ -1,8 +1,6 @@
--- lib/grid_ui.lua v0.4
--- CHANGELOG v0.4:
--- 1. SINTAXIS: Declaración local estricta al inicio.
--- 2. CORRUTINAS: Auto-anulación de disconnect_timer para evitar errores de hilo muerto.
--- 3. UI: Integración segura de la respiración OSC.
+-- lib/grid_ui.lua v0.6
+-- CHANGELOG v0.6:
+-- 1. FIX: Adaptación a la nueva arquitectura Matrix.connect / Matrix.disconnect.
 
 local GridUI = {}
 
@@ -50,15 +48,13 @@ function GridUI.key(G, g, x, y, z)
                     if G.patch[src.id][dst.id].active then
                         GridUI.disconnect_timer = clock.run(function()
                             clock.sleep(1.0)
-                            G.patch[src.id][dst.id].active = false
-                            Matrix.update_destination(dst.id, G)
+                            Matrix.disconnect(src.id, dst.id, G)
                             G.screen_dirty = true
                             print("ELIANNE: Cable desconectado.")
                             GridUI.disconnect_timer = nil
                         end)
                     else
-                        G.patch[src.id][dst.id].active = true
-                        Matrix.update_destination(dst.id, G)
+                        Matrix.connect(src.id, dst.id, G)
                         print("ELIANNE: Cable conectado.")
                     end
                     
@@ -86,6 +82,7 @@ function GridUI.key(G, g, x, y, z)
     
     G.screen_dirty = true
 end
+
 
 function GridUI.redraw(G, g)
     if not g then return end
