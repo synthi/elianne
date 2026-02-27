@@ -1,4 +1,4 @@
--- elianne.lua v0.1.1
+-- elianne.lua v0.1.2
 -- Motor Principal - Proyecto ELIANNE (Grado Científico)
 -- Arquitectura: Raspberry Pi 4 / Monome Norns / Grid 128
 
@@ -15,6 +15,19 @@ g = grid.connect()
 
 local grid_metro
 local screen_metro
+
+G.node_levels = {}
+for i = 1, 64 do G.node_levels[i] = 0 end
+
+osc.event = function(path, args, from)
+    if path == '/elianne_levels' then
+        -- args[1] y[2] son node_id y synth_id internos de SC. Los datos empiezan en args[3]
+        for i = 1, 64 do
+            G.node_levels[i] = args[i + 2] or 0
+        end
+        G.screen_dirty = true -- Forzar actualización visual si es necesario
+    end
+end
 
 function init()
     -- Inicializar base de datos de nodos
@@ -47,6 +60,10 @@ function init()
     -- Interceptar guardado/carga de Norns
     params.action_write = function(filename, name, number) Storage.save(G, number) end
     params.action_read = function(filename, silent, number) Storage.load(G, number) end
+
+    -- Sincronización inicial obligatoria (Evita desajustes SC/Lua)
+    params:default()
+    params:bang()
     
     print("ELIANNE: Sistema Forense Iniciado.")
 end
