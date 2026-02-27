@@ -1,10 +1,8 @@
-// lib/Engine_Elianne.sc v0.4 (Forensic Grade)
-// CHANGELOG v0.4:
-// 1. ARCHITECTURE: InFeedback.ar implementado para inmunidad absoluta a Deadlocks.
-// 2. DSP: Corrección de tipado (.ar vs .kr) en multiplexores y exponenciales.
-// 3. DSP: Filtros OnePole anti-aliasing integrados en nodos de saturación JFET/Cinta.
-// 4. MEMORY: Expansión de búfer en DelayC para evitar desbordamientos por Wow & Flutter.
-// 5. OSC: 10 comandos de control faltantes inyectados y mapeados.
+// lib/Engine_Elianne.sc v0.6
+// CHANGELOG v0.6:
+// 1. FIX FATAL: Eliminado patch_row (C-Stack Overflow).
+// 2. OPTIMIZACIÓN: Implementado patch_set. SC mantiene el estado de la matriz internamente.
+// 3. INTEGRIDAD: Archivo generado al 100% sin marcadores de posición.
 
 Engine_Elianne : CroneEngine {
     var <bus_nodes_tx;
@@ -15,6 +13,7 @@ Engine_Elianne : CroneEngine {
     
     var <synth_matrix;
     var <synth_mods;
+    var matrix_state;
     
     *new { arg context, doneCallback;
         ^super.new(context, doneCallback);
@@ -31,6 +30,9 @@ Engine_Elianne : CroneEngine {
         64.do { |i| bus_levels.setAt(i, 1.0) };
         
         synth_mods = Array.newClear(8);
+        
+        // Inicializar la memoria de la matriz en ceros
+        matrix_state = Array.fill(64, { Array.fill(64, 0.0) });
 
         context.server.sync;
 
@@ -73,10 +75,9 @@ Engine_Elianne : CroneEngine {
             pwm_mod = InFeedback.ar(in_pwm) * In.kr(lvl_pwm);
             voct = InFeedback.ar(in_voct) * In.kr(lvl_voct);
             
-            // FIX: LFNoise2.ar para evitar zippering en el cálculo exponencial
             thermal = LFNoise2.ar(0.01) * K2A.ar(In.kr(phys_bus + 0)); 
             
-            base_freq = Select.kr(range, [tune, tune * 0.01]);
+            base_freq = Select.kr(range,[tune, tune * 0.01]);
             freq = (K2A.ar(base_freq + fine) + (fm1 * 50) + (fm2 * 50)) * (2.0 ** (voct + thermal));
             pwm_final = (pwm_base + pwm_mod).clip(0.05, 0.95);
             
@@ -231,14 +232,12 @@ Engine_Elianne : CroneEngine {
             sum_sig = (hilb_c[0] * hilb_m[0]) - (hilb_c[1] * hilb_m[1]);
             diff_sig = (hilb_c[0] * hilb_m[0]) + (hilb_c[1] * hilb_m[1]);
             
-            // FIX: Filtro OnePole para mitigar aliasing de la saturación
             rm_raw = (car + c_bleed) * (mod + m_bleed) * (1.0 + (drive * 5));
             rm_sig = OnePole.ar(rm_raw.tanh, 0.4);
             
             gate_trig = Schmidt.ar(gate_sig, 0.5, 0.6);
             state_flip = ToggleFF.ar(gate_trig);
             
-            // FIX: Select.ar con DC.ar para evitar error de tipado
             current_state = Select.ar(K2A.ar(state_mode), [state_flip, DC.ar(1), DC.ar(0)]);
             state_smooth = Lag.ar(current_state, xfade);
             
@@ -285,7 +284,6 @@ Engine_Elianne : CroneEngine {
             f_mod = (base_f + fine + (cv1 * 1000) + (cv2_mod * 1000) + (ping_env * p_shift * 1000)).clip(10, 20000);
             q_mod = (q + (res_cv * 10) + (ping_env * 500)).clip(0.1, 500);
             
-            // FIX: Filtro OnePole para mitigar aliasing de la saturación JFET
             drive_raw = aud * jfet;
             drive_aud = OnePole.ar(drive_raw.tanh, 0.4);
             
@@ -340,7 +338,6 @@ Engine_Elianne : CroneEngine {
             flutter = LFNoise1.ar(15) * flut_amt * 0.005;
             tape_dt = (tape_time + wow + flutter).clip(0.01, 2.0);
             
-            // FIX: maxdelaytime a 2.2 para evitar desbordamiento de memoria
             tape_raw = DelayC.ar(tape_in, 2.2, tape_dt);
             tape_out = OnePole.ar((tape_raw * 1.2).tanh, 0.4); 
             
@@ -433,9 +430,15 @@ Engine_Elianne : CroneEngine {
         // COMANDOS OSC (LUA -> SC)
         // =====================================================================
         
-        this.addCommand("patch_row", "iffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", { |msg| 
-            synth_matrix.set(("row_" ++ msg[1]).asSymbol, msg.drop(2));
+        this.addCommand("patch_set", "iif", { |msg| 
+            var dst = msg[1] - 1; 
+            var src = msg[2] - 1;
+            var val = msg[3];
+            
+            matrix_state[dst][src] = val;
+            synth_matrix.set(("row_" ++ (dst + 1)).asSymbol, matrix_state[dst]);
         });
+
         this.addCommand("set_in_level", "if", { |msg| bus_levels.setAt(msg[1] - 1, msg[2]) });
         this.addCommand("set_out_level", "if", { |msg| bus_levels.setAt(msg[1] - 1, msg[2]) });
         this.addCommand("set_in_pan", "if", { |msg| bus_pans.setAt(msg[1] - 1, msg[2]) });
@@ -474,12 +477,12 @@ Engine_Elianne : CroneEngine {
         this.addCommand("m3_pwm1", "f", { |msg| synth_mods[2].set(\pwm1, msg[1]) });
         this.addCommand("m3_morph1", "f", { |msg| synth_mods[2].set(\morph1, msg[1]) });
         this.addCommand("m3_range1", "i", { |msg| synth_mods[2].set(\range1, msg[1] - 1) });
-        this.addCommand("m3_pv1_mode", "i", { |msg| synth_mods[2].set(\pv1_mode, msg[1]) }); // FIX
+        this.addCommand("m3_pv1_mode", "i", { |msg| synth_mods[2].set(\pv1_mode, msg[1]) });
         this.addCommand("m3_tune2", "f", { |msg| synth_mods[2].set(\tune2, msg[1]) });
         this.addCommand("m3_pwm2", "f", { |msg| synth_mods[2].set(\pwm2, msg[1]) });
         this.addCommand("m3_morph2", "f", { |msg| synth_mods[2].set(\morph2, msg[1]) });
         this.addCommand("m3_range2", "i", { |msg| synth_mods[2].set(\range2, msg[1] - 1) });
-        this.addCommand("m3_pv2_mode", "i", { |msg| synth_mods[2].set(\pv2_mode, msg[1]) }); // FIX
+        this.addCommand("m3_pv2_mode", "i", { |msg| synth_mods[2].set(\pv2_mode, msg[1]) });
 
         // M4
         this.addCommand("m4_slow_rate", "f", { |msg| synth_mods[3].set(\slow_rate, msg[1]) });
@@ -498,7 +501,7 @@ Engine_Elianne : CroneEngine {
         this.addCommand("m5_vca_base", "f", { |msg| synth_mods[4].set(\vca_base, msg[1]) });
         this.addCommand("m5_vca_resp", "f", { |msg| synth_mods[4].set(\vca_resp, msg[1]) });
         this.addCommand("m5_xfade", "f", { |msg| synth_mods[4].set(\xfade, msg[1]) });
-        this.addCommand("m5_state_mode", "i", { |msg| synth_mods[4].set(\state_mode, msg[1]) }); // FIX
+        this.addCommand("m5_state_mode", "i", { |msg| synth_mods[4].set(\state_mode, msg[1]) });
 
         // M6
         this.addCommand("m6_cutoff", "f", { |msg| synth_mods[5].set(\cutoff, msg[1]) });
@@ -508,8 +511,8 @@ Engine_Elianne : CroneEngine {
         this.addCommand("m6_final_q", "f", { |msg| synth_mods[5].set(\final_q, msg[1]) });
         this.addCommand("m6_out_lvl", "f", { |msg| synth_mods[5].set(\out_lvl, msg[1]) });
         this.addCommand("m6_jfet", "f", { |msg| synth_mods[5].set(\jfet, msg[1]) });
-        this.addCommand("m6_cv2_mode", "i", { |msg| synth_mods[5].set(\cv2_mode, msg[1]) }); // FIX
-        this.addCommand("m6_range", "i", { |msg| synth_mods[5].set(\range, msg[1] - 1) }); // FIX
+        this.addCommand("m6_cv2_mode", "i", { |msg| synth_mods[5].set(\cv2_mode, msg[1]) });
+        this.addCommand("m6_range", "i", { |msg| synth_mods[5].set(\range, msg[1] - 1) });
 
         // M7
         this.addCommand("m7_cutoff", "f", { |msg| synth_mods[6].set(\cutoff, msg[1]) });
@@ -519,8 +522,8 @@ Engine_Elianne : CroneEngine {
         this.addCommand("m7_final_q", "f", { |msg| synth_mods[6].set(\final_q, msg[1]) });
         this.addCommand("m7_out_lvl", "f", { |msg| synth_mods[6].set(\out_lvl, msg[1]) });
         this.addCommand("m7_jfet", "f", { |msg| synth_mods[6].set(\jfet, msg[1]) });
-        this.addCommand("m7_cv2_mode", "i", { |msg| synth_mods[6].set(\cv2_mode, msg[1]) }); // FIX
-        this.addCommand("m7_range", "i", { |msg| synth_mods[6].set(\range, msg[1] - 1) }); // FIX
+        this.addCommand("m7_cv2_mode", "i", { |msg| synth_mods[6].set(\cv2_mode, msg[1]) });
+        this.addCommand("m7_range", "i", { |msg| synth_mods[6].set(\range, msg[1] - 1) });
 
         // M8
         this.addCommand("m8_cut_l", "f", { |msg| synth_mods[7].set(\cut_l, msg[1]) });
@@ -530,9 +533,9 @@ Engine_Elianne : CroneEngine {
         this.addCommand("m8_tape_fb", "f", { |msg| synth_mods[7].set(\tape_fb, msg[1]) });
         this.addCommand("m8_tape_mix", "f", { |msg| synth_mods[7].set(\tape_mix, msg[1]) });
         this.addCommand("m8_drive", "f", { |msg| synth_mods[7].set(\drive, msg[1]) });
-        this.addCommand("m8_filt_byp", "i", { |msg| synth_mods[7].set(\filt_byp, msg[1]) }); // FIX
-        this.addCommand("m8_adc_mon", "f", { |msg| synth_mods[7].set(\adc_mon, msg[1]) }); // FIX
-        this.addCommand("m8_tape_mute", "i", { |msg| synth_mods[7].set(\tape_mute, msg[1]) }); // FIX
+        this.addCommand("m8_filt_byp", "i", { |msg| synth_mods[7].set(\filt_byp, msg[1]) });
+        this.addCommand("m8_adc_mon", "f", { |msg| synth_mods[7].set(\adc_mon, msg[1]) });
+        this.addCommand("m8_tape_mute", "i", { |msg| synth_mods[7].set(\tape_mute, msg[1]) });
     }
 
     free {
