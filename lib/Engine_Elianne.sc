@@ -1,4 +1,4 @@
-// lib/Engine_Elianne.sc v0.3
+// lib/Engine_Elianne.sc v0.3.1
 // CHANGELOG v0.3:
 // 1. ARCHITECTURE: Matriz Universal de 64x64 Nodos (Permite conexiones In->In, Out->Out).
 // 2. DSP: Implementación completa de los 8 módulos con modelado físico extremo (Pi 4).
@@ -257,7 +257,7 @@ Engine_Elianne : CroneEngine {
             var q_mod = (q + (res_cv * 10) + (ping_env * 500)).clip(0.1, 500);
             
             // SVF Core (sc3-plugins) con pre-saturación JFET
-            var drive_aud = (aud * 1.5).tanh;
+            var drive_aud = (aud * jfet).tanh;
             var svf = SVF.ar(drive_aud, f_mod, q_mod, 1, 1, 1, 0, 0);
             var lp = svf[0];
             var bp = svf[1];
@@ -292,7 +292,7 @@ Engine_Elianne : CroneEngine {
             var al = Pan2.ar(adc[0] * In.kr(lvl_al), In.kr(pan_al));
             var ar = Pan2.ar(adc[1] * In.kr(lvl_ar), In.kr(pan_ar));
             
-            var sum = ml + mr + al + ar;
+            var sum = (ml + mr + al + ar) * drive;
             
             // Filtros 1006 (Moog Ladder 24dB)
             var filt_l = MoogFF.ar(sum[0], cut_l, res);
@@ -479,6 +479,7 @@ Engine_Elianne : CroneEngine {
         this.addCommand("m6_notch", "f", { |msg| synth_mods[5].set(\notch_ofs, msg[1]) });
         this.addCommand("m6_final_q", "f", { |msg| synth_mods[5].set(\final_q, msg[1]) });
         this.addCommand("m6_out_lvl", "f", { |msg| synth_mods[5].set(\out_lvl, msg[1]) });
+        this.addCommand("m6_jfet", "f", { |msg| synth_mods[5].set(\jfet, msg[1]) });
 
         // Parámetros M7
         this.addCommand("m7_cutoff", "f", { |msg| synth_mods[6].set(\cutoff, msg[1]) });
@@ -487,6 +488,7 @@ Engine_Elianne : CroneEngine {
         this.addCommand("m7_notch", "f", { |msg| synth_mods[6].set(\notch_ofs, msg[1]) });
         this.addCommand("m7_final_q", "f", { |msg| synth_mods[6].set(\final_q, msg[1]) });
         this.addCommand("m7_out_lvl", "f", { |msg| synth_mods[6].set(\out_lvl, msg[1]) });
+        this.addCommand("m7_jfet", "f", { |msg| synth_mods[6].set(\jfet, msg[1]) });
 
         // Parámetros M8
         this.addCommand("m8_cut_l", "f", { |msg| synth_mods[7].set(\cut_l, msg[1]) });
@@ -495,6 +497,7 @@ Engine_Elianne : CroneEngine {
         this.addCommand("m8_tape_time", "f", { |msg| synth_mods[7].set(\tape_time, msg[1]) });
         this.addCommand("m8_tape_fb", "f", { |msg| synth_mods[7].set(\tape_fb, msg[1]) });
         this.addCommand("m8_tape_mix", "f", { |msg| synth_mods[7].set(\tape_mix, msg[1]) });
+        this.addCommand("m8_drive", "f", { |msg| synth_mods[7].set(\drive, msg[1]) });
     }
 
     free {
