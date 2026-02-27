@@ -1,4 +1,4 @@
--- lib/matrix.lua v0.2
+-- lib/matrix.lua v0.21
 -- CHANGELOG v0.2:
 -- 1. MAPEO TOTAL: Implementadas funciones para enviar niveles de los 64 nodos a SC.
 -- 2. SINCRONIZACIÓN: Enlaza los cambios de UI con los parámetros ocultos de Norns.
@@ -40,8 +40,8 @@ end
 function Matrix.update_destination(dst_id, G)
     local row_data = {}
     
-    -- Recopila el estado de las 32 fuentes hacia este destino
-    for src_id = 1, 32 do
+    -- Recopila el estado de las 64 fuentes hacia este destino
+    for src_id = 1, 64 do
         if G.patch[src_id] and G.patch[src_id][dst_id] and G.patch[src_id][dst_id].active then
             table.insert(row_data, 1.0)
         else
