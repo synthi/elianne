@@ -1,4 +1,4 @@
-// lib/Engine_Elianne.sc v0.3.3
+// lib/Engine_Elianne.sc v0.3.4
 // CHANGELOG v0.3:
 // 1. ARCHITECTURE: Matriz Universal de 64x64 Nodos (Permite conexiones In->In, Out->Out).
 // 2. DSP: Implementación completa de los 8 módulos con modelado físico extremo (Pi 4).
@@ -239,40 +239,50 @@ Engine_Elianne : CroneEngine {
         // SYNTH 6 & 7: ARP 1047 (Multimode Filter / Resonator)
         // =====================================================================
         SynthDef(\Elianne_1047, {
+            // 1. ARGUMENTOS (Incluyendo jfet=1.5)
             arg in_aud, in_cv1, in_res, in_cv2,
                 out_lp, out_bp, out_hp, out_notch,
                 lvl_aud, lvl_cv1, lvl_res, lvl_cv2,
                 lvl_lp, lvl_bp, lvl_hp, lvl_notch,
                 cutoff=1000, fine=0, q=1, notch_ofs=0, final_q=2, out_lvl=1,
-                cv2_mode=0, range=0, phys_bus;
+                cv2_mode=0, range=0, jfet=1.5, phys_bus;
                 
-            var aud = In.ar(in_aud) * In.kr(lvl_aud);
-            var cv1 = In.ar(in_cv1) * In.kr(lvl_cv1);
-            var res_cv = In.ar(in_res) * In.kr(lvl_res);
-            var cv2 = In.ar(in_cv2) * In.kr(lvl_cv2);
-            var p_shift = In.kr(phys_bus + 4);
+            // 2. DECLARACIÓN ESTRICTA DE VARIABLES (Fase 1)
+            var aud, cv1, res_cv, cv2, p_shift;
+            var ping_trig, ping_env, cv2_mod;
+            var base_f, f_mod, q_mod;
+            var drive_aud, svf, lp, bp, hp;
+            var notch_f, notch_svf, notch;
+            
+            // 3. CÓDIGO OPERACIONAL (Fase 2)
+            aud = In.ar(in_aud) * In.kr(lvl_aud);
+            cv1 = In.ar(in_cv1) * In.kr(lvl_cv1);
+            res_cv = In.ar(in_res) * In.kr(lvl_res);
+            cv2 = In.ar(in_cv2) * In.kr(lvl_cv2);
+            p_shift = In.kr(phys_bus + 4);
             
             // Keyboard Ping Logic
-            var ping_trig = Schmidt.ar(cv2, 0.5, 0.6) * cv2_mode;
-            var ping_env = EnvGen.ar(Env.perc(0.001, final_q * 0.1), ping_trig);
-            var cv2_mod = cv2 * (1 - cv2_mode);
+            ping_trig = Schmidt.ar(cv2, 0.5, 0.6) * cv2_mode;
+            ping_env = EnvGen.ar(Env.perc(0.001, final_q * 0.1), ping_trig);
+            cv2_mod = cv2 * (1 - cv2_mode);
             
-            var base_f = Select.kr(range,[cutoff, cutoff * 0.01]);
-            var f_mod = (base_f + fine + (cv1 * 1000) + (cv2_mod * 1000) + (ping_env * p_shift * 1000)).clip(10, 20000);
-            var q_mod = (q + (res_cv * 10) + (ping_env * 500)).clip(0.1, 500);
+            base_f = Select.kr(range, [cutoff, cutoff * 0.01]);
+            f_mod = (base_f + fine + (cv1 * 1000) + (cv2_mod * 1000) + (ping_env * p_shift * 1000)).clip(10, 20000);
+            q_mod = (q + (res_cv * 10) + (ping_env * 500)).clip(0.1, 500);
             
-            // SVF Core (sc3-plugins) con pre-saturación JFET
-            var drive_aud = (aud * jfet).tanh;
-            var svf = SVF.ar(drive_aud, f_mod, q_mod, 1, 1, 1, 0, 0);
-            var lp = svf[0];
-            var bp = svf[1];
-            var hp = svf[2];
+            // SVF Core con pre-saturación JFET
+            drive_aud = (aud * jfet).tanh;
+            svf = SVF.ar(drive_aud, f_mod, q_mod, 1, 1, 1, 0, 0);
+            lp = svf[0];
+            bp = svf[1];
+            hp = svf[2];
             
             // Notch Asimétrico Analógico
-            var notch_f = f_mod * (2.0 ** (notch_ofs * 3.0));
-            var notch_svf = SVF.ar(drive_aud, notch_f, q_mod, 1, 0, 1, 0, 0);
-            var notch = notch_svf[0] + (notch_svf[2] * 0.985); // Tolerancia de resistencia
+            notch_f = f_mod * (2.0 ** (notch_ofs * 3.0));
+            notch_svf = SVF.ar(drive_aud, notch_f, q_mod, 1, 0, 1, 0, 0);
+            notch = notch_svf[0] + (notch_svf[2] * 0.985); // Tolerancia de resistencia
             
+            // Salidas
             Out.ar(out_lp, lp * out_lvl * In.kr(lvl_lp));
             Out.ar(out_bp, bp * out_lvl * In.kr(lvl_bp));
             Out.ar(out_hp, hp * out_lvl * In.kr(lvl_hp));
