@@ -1,19 +1,20 @@
--- lib/screen_ui.lua v0.91
--- CHANGELOG v0.91:
--- 1. UI: Grid Virtual rediseñado (Fila 4 oculta, texto Elianne 2500, sin interacción).
--- 2. UI: Idle Screen limpia (Volumen en dB, sin etiquetas).
--- 3. UI: Menús reordenados (1005, 1047, Nexus) y etiquetas actualizadas.
+-- lib/screen_ui.lua v0.92
+-- CHANGELOG v0.92:
+-- 1. UI: Grid Virtual lee directamente la caché física (GridUI.cache) para sincronización 1:1.
+-- 2. UI: Invertidos E2 y E3 visualmente en menús de nodo.
+-- 3. UI: Eliminados espacios en blanco en el formateo de parámetros.
+-- 4. UI: Añadido PING a K3 en 1047. Eliminado RNG en osciladores.
 
 local ScreenUI = {}
 
 local MenuDef = {
-    [1] = { A = { title = "1004-P (A) MIXER", e1 = {id="m1_mix_sine", name="SINE"}, e2 = {id="m1_mix_tri", name="TRI"}, e3 = {id="m1_mix_saw", name="SAW"}, e4 = {id="m1_mix_pulse", name="PULSE"} }, B = { title = "1004-P (A) CORE", e1 = {id="m1_pwm", name="PWM"}, e2 = {id="m1_tune", name="TUNE"}, e3 = {id="m1_fine", name="FINE"}, k3 = {id="m1_range", name="RNG"} } },
-    [2] = { A = { title = "1004-P (B) MIXER", e1 = {id="m2_mix_sine", name="SINE"}, e2 = {id="m2_mix_tri", name="TRI"}, e3 = {id="m2_mix_saw", name="SAW"}, e4 = {id="m2_mix_pulse", name="PULSE"} }, B = { title = "1004-P (B) CORE", e1 = {id="m2_pwm", name="PWM"}, e2 = {id="m2_tune", name="TUNE"}, e3 = {id="m2_fine", name="FINE"}, k3 = {id="m2_range", name="RNG"} } },
-    [3] = { A = { title = "1023 - OSC 1", e1 = {id="m3_pwm1", name="PWM"}, e2 = {id="m3_tune1", name="TUNE"}, e3 = {id="m3_morph1", name="MORPH"}, k3 = {id="m3_range1", name="RNG"} }, B = { title = "1023 - OSC 2", e1 = {id="m3_pwm2", name="PWM"}, e2 = {id="m3_tune2", name="TUNE"}, e3 = {id="m3_morph2", name="MORPH"}, k3 = {id="m3_range2", name="RNG"} } },
-    [4] = { A = { title = "1016 NOISE", e1 = {id="m4_slow_rate", name="RATE"}, e2 = {id="m4_tilt1", name="TILT 1"}, e3 = {id="m4_tilt2", name="TILT 2"}, k2 = {id="m4_type1", name="N1"}, k3 = {id="m4_type2", name="N2"} }, B = { title = "1036 S&H", e1 = {id="m4_clk_rate", name="CLOCK"}, e2 = {id="m4_prob_skew", name="SKEW"}, e3 = {id="m4_glide", name="GLIDE"} } },[5] = { A = { title = "1005 STATE", e1 = {id="m5_drive", name="DRIVE"}, e2 = {id="m5_mod_gain", name="MOD"}, e3 = {id="m5_unmod_gain", name="UNMOD"}, k2 = {id="m5_state", name="ST"} }, B = { title = "1005 VCA", e1 = {id="m5_xfade", name="XFADE"}, e2 = {id="m5_vca_base", name="BASE"}, e3 = {id="m5_vca_resp", name="RESP"}, k2 = {id="m5_state", name="ST"} } },
-    [6] = { A = { title = "1047 (A) FILTER", e1 = {id="m6_q", name="RES"}, e2 = {id="m6_cutoff", name="FREQ"}, e3 = {id="m6_fine", name="FINE"}, e4 = {id="m6_jfet", name="DRIVE"} }, B = { title = "1047 (A) NOTCH", e1 = {id="m6_p_shift", name="P.SHIFT"}, e2 = {id="m6_notch", name="NOTCH FRQ"}, e3 = {id="m6_final_q", name="KEY DCY"} } },
-    [7] = { A = { title = "1047 (B) FILTER", e1 = {id="m7_q", name="RES"}, e2 = {id="m7_cutoff", name="FREQ"}, e3 = {id="m7_fine", name="FINE"}, e4 = {id="m7_jfet", name="DRIVE"} }, B = { title = "1047 (B) NOTCH", e1 = {id="m7_p_shift", name="P.SHIFT"}, e2 = {id="m7_notch", name="NOTCH FRQ"}, e3 = {id="m7_final_q", name="KEY DCY"} } },
-    [8] = { A = { title = "NEXUS MASTER", e1 = {id="m8_res", name="RES"}, e2 = {id="m8_cut_l", name="VCF L"}, e3 = {id="m8_cut_r", name="VCF R"}, k2 = {id="m8_filt_byp", name="FILT"}, k3 = {id="m8_adc_mon", name="ADC"} }, B = { title = "NEXUS TAPE", e1 = {id="m8_tape_mix", name="MIX"}, e2 = {id="m8_tape_time", name="TIME"}, e3 = {id="m8_tape_fb", name="FDBK"}, e4 = {id="m8_wow", name="WOW/FLUT"}, k2 = {id="m8_tape_sat", name="SAT"}, k3 = {id="m8_tape_mute", name="MUTE"} } }
+    [1] = { A = { title = "1004-P (A) MIXER", e1 = {id="m1_mix_sine", name="SINE"}, e2 = {id="m1_mix_tri", name="TRI"}, e3 = {id="m1_mix_saw", name="SAW"}, e4 = {id="m1_mix_pulse", name="PULSE"} }, B = { title = "1004-P (A) CORE", e1 = {id="m1_pwm", name="PWM"}, e2 = {id="m1_tune", name="TUNE"}, e3 = {id="m1_fine", name="FINE"}, k3 = {id="m1_range", name=""} } },
+    [2] = { A = { title = "1004-P (B) MIXER", e1 = {id="m2_mix_sine", name="SINE"}, e2 = {id="m2_mix_tri", name="TRI"}, e3 = {id="m2_mix_saw", name="SAW"}, e4 = {id="m2_mix_pulse", name="PULSE"} }, B = { title = "1004-P (B) CORE", e1 = {id="m2_pwm", name="PWM"}, e2 = {id="m2_tune", name="TUNE"}, e3 = {id="m2_fine", name="FINE"}, k3 = {id="m2_range", name=""} } },
+    [3] = { A = { title = "1023 - OSC 1", e1 = {id="m3_pwm1", name="PWM"}, e2 = {id="m3_tune1", name="TUNE"}, e3 = {id="m3_morph1", name="MORPH"}, k3 = {id="m3_range1", name=""} }, B = { title = "1023 - OSC 2", e1 = {id="m3_pwm2", name="PWM"}, e2 = {id="m3_tune2", name="TUNE"}, e3 = {id="m3_morph2", name="MORPH"}, k3 = {id="m3_range2", name=""} } },
+    [4] = { A = { title = "1016 NOISE", e1 = {id="m4_slow_rate", name="RATE"}, e2 = {id="m4_tilt1", name="TILT 1"}, e3 = {id="m4_tilt2", name="TILT 2"}, k2 = {id="m4_type1", name="N1"}, k3 = {id="m4_type2", name="N2"} }, B = { title = "1036 S&H", e1 = {id="m4_clk_rate", name="CLOCK"}, e2 = {id="m4_prob_skew", name="SKEW"}, e3 = {id="m4_glide", name="GLIDE"} } },
+    [5] = { A = { title = "1005 STATE", e1 = {id="m5_drive", name="DRIVE"}, e2 = {id="m5_mod_gain", name="MOD"}, e3 = {id="m5_unmod_gain", name="UNMOD"}, k2 = {id="m5_state", name="ST"} }, B = { title = "1005 VCA", e1 = {id="m5_xfade", name="XFADE"}, e2 = {id="m5_vca_base", name="BASE"}, e3 = {id="m5_vca_resp", name="RESP"}, k2 = {id="m5_state", name="ST"} } },
+    [6] = { A = { title = "1047 (A) FILTER", e1 = {id="m6_q", name="RES"}, e2 = {id="m6_cutoff", name="FREQ"}, e3 = {id="m6_fine", name="FINE"}, e4 = {id="m6_jfet", name="DRIVE"} }, B = { title = "1047 (A) NOTCH", e1 = {id="m6_p_shift", name="P.SHIFT"}, e2 = {id="m6_notch", name="NOTCH FRQ"}, e3 = {id="m6_final_q", name="KEY DCY"}, k3 = {id="m6_ping", name="PING"} } },[7] = { A = { title = "1047 (B) FILTER", e1 = {id="m7_q", name="RES"}, e2 = {id="m7_cutoff", name="FREQ"}, e3 = {id="m7_fine", name="FINE"}, e4 = {id="m7_jfet", name="DRIVE"} }, B = { title = "1047 (B) NOTCH", e1 = {id="m7_p_shift", name="P.SHIFT"}, e2 = {id="m7_notch", name="NOTCH FRQ"}, e3 = {id="m7_final_q", name="KEY DCY"}, k3 = {id="m7_ping", name="PING"} } },
+    [8] = { A = { title = "NEXUS MASTER", e1 = {id="m8_res", name="RES"}, e2 = {id="m8_cut_l", name="VCF L"}, e3 = {id="m8_cut_r", name="VCF R"}, k2 = {id="m8_filt_byp", name="FILT"}, k3 = {id="m8_adc_mon", name="ADC"} }, B = { title = "NEXUS TAPE", e1 = {id="m8_tape_mix", name="MIX"}, e2 = {id="m8_tape_time", name="TIME"}, e3 = {id="m8_tape_fb", name="FDBK"}, e4 = {id="m8_wow", name="W&F"}, k2 = {id="m8_tape_sat", name="SAT"}, k3 = {id="m8_tape_mute", name="MUTE"} } }
 }
 
 local function grid_to_screen(x, y)
@@ -24,22 +25,22 @@ local function fmt_hz(v)
     return v >= 1000 and string.format("%.1fkHz", v/1000) or string.format("%.1fHz", v) 
 end
 
+local function clean_str(str)
+    return string.gsub(str, " ", "")
+end
+
 function ScreenUI.draw_idle(G)
-    -- 1. Grid Virtual (Solo lectura de audio, Fila 4 oculta)
+    local GridUI = include('lib/grid_ui')
+    
+    -- 1. Grid Virtual (Sincronización 1:1 con caché física)
     for x = 1, 16 do
         for y = 1, 8 do
-            if y ~= 4 then -- Ocultar fila 4
-                local node = G.grid_map[x][y]
+            if y == 1 or y == 2 or y == 6 or y == 7 then
                 local px, py = grid_to_screen(x, y)
-                local is_even = (math.ceil(x / 2) % 2 == 0)
-                local base_bright = is_even and 4 or 2
+                local b = GridUI.cache[x][y] or 0
+                if b == -1 then b = 0 end
                 
-                if node and G.node_levels and G.node_levels[node.id] then
-                    local audio_mod = math.floor(util.clamp(G.node_levels[node.id] * 10, 0, 6))
-                    base_bright = util.clamp(base_bright + audio_mod, 0, 14)
-                end
-                
-                screen.level(base_bright)
+                screen.level(b)
                 screen.rect(px - 2, py - 2, 4, 4)
                 screen.fill()
             end
@@ -113,21 +114,23 @@ function ScreenUI.draw_node_menu(G)
     end
     screen.fill()
     
+    -- E3 (Level) a la derecha
     screen.level(4)
-    screen.move(10, 55)
-    screen.text("E3 Level: ")
+    screen.move(126, 55)
+    local lvl_str = string.format("%.2f", node.level or 0)
+    local w_lvl = screen.text_extents(lvl_str)
+    screen.text_right(lvl_str)
     screen.level(15)
-    screen.text(string.format("%.2f", node.level or 0))
+    screen.move(126 - w_lvl - 2, 55)
+    screen.text_right("E3 Level: ")
     
+    -- E2 (Pan) a la izquierda
     if node.module == 8 and node.type == "in" then
-        local pan_str = string.format("%.2f", node.pan or 0)
-        local w = screen.text_extents(pan_str)
-        screen.level(15)
-        screen.move(126, 55)
-        screen.text_right(pan_str)
         screen.level(4)
-        screen.move(126 - w - 2, 55)
-        screen.text_right("E2 Pan: ")
+        screen.move(10, 55)
+        screen.text("E2 Pan: ")
+        screen.level(15)
+        screen.text(string.format("%.2f", node.pan or 0))
     end
 end
 
@@ -139,7 +142,7 @@ local function draw_param(def_e, x, y, label)
     if string.find(def_e.id, "cut") or string.find(def_e.id, "tune") then
         screen.text(fmt_hz(params:get(def_e.id)))
     else
-        screen.text(params:string(def_e.id))
+        screen.text(clean_str(params:string(def_e.id)))
     end
 end
 
@@ -161,12 +164,14 @@ function ScreenUI.draw_module_menu(G)
     if def.k2 then 
         local k2_id = type(def.k2) == "table" and def.k2.id or def.k2
         local k2_name = type(def.k2) == "table" and def.k2.name or "K2"
-        screen.move(126, 30); screen.text_right("K2 " .. k2_name .. ": " .. params:string(k2_id)) 
+        local k2_val = clean_str(params:string(k2_id))
+        screen.move(126, 30); screen.text_right("K2 " .. k2_name .. (k2_name ~= "" and ": " or "") .. k2_val) 
     end
     if def.k3 then 
         local k3_id = type(def.k3) == "table" and def.k3.id or def.k3
         local k3_name = type(def.k3) == "table" and def.k3.name or "K3"
-        screen.move(126, 45); screen.text_right("K3 " .. k3_name .. ": " .. params:string(k3_id)) 
+        local k3_val = clean_str(params:string(k3_id))
+        screen.move(126, 45); screen.text_right("K3 " .. k3_name .. (k3_name ~= "" and ": " or "") .. k3_val) 
     end
 end
 
@@ -259,7 +264,9 @@ function ScreenUI.key(G, n, z)
             local p_idx = params.lookup[target_param]
             if p_idx then
                 local p = params.params[p_idx]
-                if p and p.options then
+                if p.type == "trigger" then
+                    params:set(target_param, 1)
+                elseif p.options then
                     local current = params:get(target_param)
                     local next_val = current + 1
                     if next_val > #p.options then next_val = 1 end
