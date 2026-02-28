@@ -1,7 +1,7 @@
--- lib/params_setup.lua v0.23
--- CHANGELOG v0.23:
--- 1. RESTAURACIÓN: Recuperados todos los encabezados visuales y notas de desarrollo.
--- 2. CORRECCIÓN DE COMENTARIOS: Actualizadas las notas de IDs de nodos para reflejar la topología real (55-58).
+-- lib/params_setup.lua v0.24
+-- CHANGELOG v0.24:
+-- 1. FIX FATAL: Añadidos parámetros faltantes (m6_jfet, m7_jfet, m8_drive, etc.) que causaban crash.
+-- 2. ORGANIZACIÓN: Eliminada carpeta State Toggles, parámetros movidos a sus módulos correspondientes.
 
 local Params = {}
 
@@ -70,7 +70,7 @@ function Params.init(G)
     -- ==========================================
     -- MÓDULO 5: 1005 MODAMP
     -- ==========================================
-    params:add_group("MOD 5: 1005 MODAMP", 8)
+    params:add_group("MOD 5: 1005 MODAMP", 9)
     params:add{type = "control", id = "m5_mod_gain", name = "MOD Gain", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 1.0), action = function(x) engine.m5_mod_gain(x) end}
     params:add{type = "control", id = "m5_unmod_gain", name = "UNMOD Gain", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 1.0), action = function(x) engine.m5_unmod_gain(x) end}
     params:add{type = "control", id = "m5_drive", name = "Transformer Drive", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.2), action = function(x) engine.m5_drive(x) end}
@@ -79,11 +79,12 @@ function Params.init(G)
     params:add{type = "control", id = "m5_xfade", name = "State XFade Time", controlspec = controlspec.new(0.0, 10.0, 'lin', 0.01, 0.05, "s"), action = function(x) engine.m5_xfade(x) end}
     params:add{type = "control", id = "m5_c_bleed", name = "Carrier Bleed", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.02), action = function(x) engine.set_global_physics("c_bleed", x) end}
     params:add{type = "control", id = "m5_m_bleed", name = "Modulator Bleed", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.01), action = function(x) engine.set_global_physics("m_bleed", x) end}
+    params:add{type = "option", id = "m5_state", name = "1005 State", options = {"UNMOD", "MOD"}, default = 1, action = function(x) engine.m5_state_mode(x - 1) end}
 
     -- ==========================================
     -- MÓDULO 6: 1047 (A)
     -- ==========================================
-    params:add_group("MOD 6: 1047 (A)", 7)
+    params:add_group("MOD 6: 1047 (A)", 8)
     params:add{type = "control", id = "m6_cutoff", name = "Cutoff", controlspec = controlspec.new(10.0, 18000.0, 'exp', 0.01, 1000.0, "Hz"), action = function(x) engine.m6_cutoff(x) end}
     params:add{type = "control", id = "m6_fine", name = "Cutoff Fine", controlspec = controlspec.new(-5.0, 5.0, 'lin', 0.001, 0.0, "Hz"), action = function(x) engine.m6_fine(x) end}
     params:add{type = "control", id = "m6_q", name = "Resonance (Q)", controlspec = controlspec.new(0.1, 500.0, 'exp', 0.1, 1.0), action = function(x) engine.m6_q(x) end}
@@ -91,11 +92,12 @@ function Params.init(G)
     params:add{type = "control", id = "m6_final_q", name = "Perc Final Q", controlspec = controlspec.new(0.1, 100.0, 'exp', 0.1, 2.0), action = function(x) engine.m6_final_q(x) end}
     params:add{type = "control", id = "m6_out_lvl", name = "Output Level", controlspec = controlspec.new(0.0, 2.0, 'lin', 0.01, 1.0), action = function(x) engine.m6_out_lvl(x) end}
     params:add{type = "control", id = "m6_p_shift", name = "Perc Pitch Shift", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.1), action = function(x) engine.set_global_physics("p_shift", x) end}
+    params:add{type = "control", id = "m6_jfet", name = "JFET Drive", controlspec = controlspec.new(0.1, 5.0, 'lin', 0.01, 1.5), action = function(x) engine.m6_jfet(x) end}
 
     -- ==========================================
     -- MÓDULO 7: 1047 (B)
     -- ==========================================
-    params:add_group("MOD 7: 1047 (B)", 7)
+    params:add_group("MOD 7: 1047 (B)", 8)
     params:add{type = "control", id = "m7_cutoff", name = "Cutoff", controlspec = controlspec.new(10.0, 18000.0, 'exp', 0.01, 1000.0, "Hz"), action = function(x) engine.m7_cutoff(x) end}
     params:add{type = "control", id = "m7_fine", name = "Cutoff Fine", controlspec = controlspec.new(-5.0, 5.0, 'lin', 0.001, 0.0, "Hz"), action = function(x) engine.m7_fine(x) end}
     params:add{type = "control", id = "m7_q", name = "Resonance (Q)", controlspec = controlspec.new(0.1, 500.0, 'exp', 0.1, 1.0), action = function(x) engine.m7_q(x) end}
@@ -103,11 +105,12 @@ function Params.init(G)
     params:add{type = "control", id = "m7_final_q", name = "Perc Final Q", controlspec = controlspec.new(0.1, 100.0, 'exp', 0.1, 2.0), action = function(x) engine.m7_final_q(x) end}
     params:add{type = "control", id = "m7_out_lvl", name = "Output Level", controlspec = controlspec.new(0.0, 2.0, 'lin', 0.01, 1.0), action = function(x) engine.m7_out_lvl(x) end}
     params:add{type = "control", id = "m7_p_shift", name = "Perc Pitch Shift", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.1), action = function(x) engine.set_global_physics("p_shift", x) end}
+    params:add{type = "control", id = "m7_jfet", name = "JFET Drive", controlspec = controlspec.new(0.1, 5.0, 'lin', 0.01, 1.5), action = function(x) engine.m7_jfet(x) end}
 
     -- ==========================================
     -- MÓDULO 8: NEXUS
     -- ==========================================
-    params:add_group("MOD 8: NEXUS", 8)
+    params:add_group("MOD 8: NEXUS", 13)
     params:add{type = "control", id = "m8_cut_l", name = "Master Cutoff L", controlspec = controlspec.new(20.0, 20000.0, 'exp', 0.01, 20000.0, "Hz"), action = function(x) engine.m8_cut_l(x) end}
     params:add{type = "control", id = "m8_cut_r", name = "Master Cutoff R", controlspec = controlspec.new(20.0, 20000.0, 'exp', 0.01, 20000.0, "Hz"), action = function(x) engine.m8_cut_r(x) end}
     params:add{type = "control", id = "m8_res", name = "Master Resonance", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.0), action = function(x) engine.m8_res(x) end}
@@ -116,12 +119,7 @@ function Params.init(G)
     params:add{type = "control", id = "m8_tape_mix", name = "Tape Dry/Wet", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.2), action = function(x) engine.m8_tape_mix(x) end}
     params:add{type = "control", id = "m8_wow", name = "Tape Wow", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.1), action = function(x) engine.set_tape_physics("wow", x) end}
     params:add{type = "control", id = "m8_flutter", name = "Tape Flutter", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.05), action = function(x) engine.set_tape_physics("flutter", x) end}
-
-    -- ==========================================
-    -- INTERRUPTORES DE ESTADO (Faltantes)
-    -- ==========================================
-    params:add_group("STATE TOGGLES", 5)
-    params:add{type = "option", id = "m5_state", name = "1005 State", options = {"UNMOD", "MOD"}, default = 1, action = function(x) engine.m5_state_mode(x - 1) end}
+    params:add{type = "control", id = "m8_drive", name = "Input Drive", controlspec = controlspec.new(0.1, 5.0, 'lin', 0.01, 1.0), action = function(x) engine.m8_drive(x) end}
     params:add{type = "option", id = "m8_filt_byp", name = "Nexus Filt Bypass", options = {"ON", "BYPASS"}, default = 1, action = function(x) engine.m8_filt_byp(x - 1) end}
     params:add{type = "option", id = "m8_adc_mon", name = "Nexus ADC Mon", options = {"OFF", "ON"}, default = 1, action = function(x) engine.m8_adc_mon(x - 1) end}
     params:add{type = "option", id = "m8_tape_sat", name = "Nexus Tape Sat", options = {"CLEAN", "PUSHED", "CRUSHED"}, default = 1} -- Se usará en futuras expansiones DSP
