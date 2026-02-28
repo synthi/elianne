@@ -1,6 +1,7 @@
--- lib/grid_ui.lua v0.6
--- CHANGELOG v0.6:
--- 1. FIX: Adaptación a la nueva arquitectura Matrix.connect / Matrix.disconnect.
+-- lib/grid_ui.lua v0.7
+-- CHANGELOG v0.7:
+-- 1. DEBOUNCE: Implementado sistema anti-rebote de 50ms para evitar pulsaciones fantasma.
+-- 2. UI: Resaltado visual de conexiones activas al mantener pulsado un nodo.
 
 local GridUI = {}
 
@@ -8,6 +9,7 @@ GridUI.cache = {}
 GridUI.held_nodes = {} 
 GridUI.disconnect_timer = nil
 GridUI.refresh_counter = 0
+GridUI.key_times = {}
 
 function GridUI.init(G)
     for x = 1, 16 do
@@ -19,6 +21,13 @@ function GridUI.init(G)
 end
 
 function GridUI.key(G, g, x, y, z)
+    local key_id = x .. "," .. y
+    if z == 1 then
+        local now = util.time()
+        if GridUI.key_times[key_id] and (now - GridUI.key_times[key_id]) < 0.05 then return end
+        GridUI.key_times[key_id] = now
+    end
+
     local node = G.grid_map[x][y]
     local is_menu = (y == 4)
 
@@ -83,7 +92,6 @@ function GridUI.key(G, g, x, y, z)
     G.screen_dirty = true
 end
 
-
 function GridUI.redraw(G, g)
     if not g then return end
 
@@ -115,10 +123,16 @@ function GridUI.redraw(G, g)
                 for _, h in ipairs(GridUI.held_nodes) do
                     if h.x == x and h.y == y then
                         b = 15
+                    elseif h.node and node then
+                        if h.node.type == "out" and node.type == "in" and G.patch[h.node.id][node.id].active then
+                            b = 10
+                        elseif h.node.type == "in" and node.type == "out" and G.patch[node.id][h.node.id].active then
+                            b = 10
+                        end
                     end
                 end
                 
-                if node and G.focus.state == "idle" and b ~= 15 then
+                if node and G.focus.state == "idle" and b ~= 15 and b ~= 10 then
                     local has_connection = false
                     if node.type == "out" then
                         for dst = 1, 64 do
@@ -129,7 +143,7 @@ function GridUI.redraw(G, g)
                             if G.patch[src] and G.patch[src][node.id] and G.patch[src][node.id].active then has_connection = true; break end
                         end
                     end
-                    if has_connection then b = math.max(b, 10) end 
+                    if has_connection then b = math.max(b, 8) end 
                 end
             end
             
