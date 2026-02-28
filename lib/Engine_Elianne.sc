@@ -1,4 +1,4 @@
-// lib/Engine_Elianne.sc v0.8.1
+// lib/Engine_Elianne.sc v0.8.2
 // CHANGELOG v0.8:
 // 1. DSP: Modelado físico del núcleo 1004-P (Tri/Saw simultáneos, PWM de doble flanco, glitch de condensador).
 // 2. DSP: Modelado del Notch 1047 (Suma asimétrica de SVF paralelos).
@@ -36,6 +36,11 @@ Engine_Elianne : CroneEngine {
         
         // Inicializar la memoria de la matriz en ceros
         matrix_state = Array.fill(64, { Array.fill(64, 0.0) });
+
+        // PUENTE OSC PARA TELEMETRÍA (Grid Virtual)
+        OSCFunc({ |msg|
+            NetAddr("127.0.0.1", 10111).sendMsg("/elianne_levels", *msg.drop(3));
+        }, '/elianne_levels', context.server.addr).fix;
 
         context.server.sync;
 
@@ -347,8 +352,9 @@ Engine_Elianne : CroneEngine {
             
             sum = (ml + mr + al + ar) * drive;
             
-            filt_l = MoogFF.ar(sum[0], cut_l, res);
-            filt_r = MoogFF.ar(sum[1], cut_r, res);
+            // Filtros 1006 (Moog Ladder 24dB) - Resonancia multiplicada por 4.0 para auto-oscilación
+            filt_l = MoogFF.ar(sum[0], cut_l, res * 3.9);
+            filt_r = MoogFF.ar(sum[1], cut_r, res * 3.9);
             filt_sig = Select.ar(K2A.ar(filt_byp), [[filt_l, filt_r], sum]);
             
             // Tape Echo (Avant_lab_V Physics)
