@@ -1,4 +1,4 @@
-// lib/Engine_Elianne.sc v0.8
+// lib/Engine_Elianne.sc v0.8.1
 // CHANGELOG v0.8:
 // 1. DSP: Modelado físico del núcleo 1004-P (Tri/Saw simultáneos, PWM de doble flanco, glitch de condensador).
 // 2. DSP: Modelado del Notch 1047 (Suma asimétrica de SVF paralelos).
@@ -352,8 +352,8 @@ Engine_Elianne : CroneEngine {
             filt_sig = Select.ar(K2A.ar(filt_byp), [[filt_l, filt_r], sum]);
             
             // Tape Echo (Avant_lab_V Physics)
-            wow_amt = K2A.ar(In.kr(phys_bus + 5));
-            flut_amt = K2A.ar(In.kr(phys_bus + 6));
+            wow_amt = In.kr(phys_bus + 5);
+            flut_amt = In.kr(phys_bus + 6);
             tape_in = filt_sig + (LocalIn.ar(2) * tape_fb);
             
             tape_time_lag = Lag3.kr(tape_time, 0.5);
