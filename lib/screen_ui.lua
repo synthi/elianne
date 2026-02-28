@@ -1,20 +1,17 @@
--- lib/screen_ui.lua v0.8
--- CHANGELOG v0.8:
--- 1. UI: Resolución científica absoluta para encoders (Hz y Attenuverters).
--- 2. UI: Ergonomía invertida (E3=Nivel, E2=Pan). Etiquetas abreviadas y separación de brillo.
--- 3. UI: Idle Screen con encoders activos (Master Vol, VCFs, Tape) y telemetría dinámica.
--- 4. UI: Grid Virtual sincronizado con pulsaciones y resaltado de cables.
+-- lib/screen_ui.lua v0.9
+-- CHANGELOG v0.9:
+-- 1. FIX FATAL: Añadido Nil Coalescing (or 1.0) en draw_idle para evitar pantallas negras si falta un parámetro.
+-- 2. ERGONOMÍA: Reordenados encoders en 1047 y Nexus. Añadido P.SHIFT en 1047.
+-- 3. UI: Formateo dinámico (Hz/kHz) en menús de módulos. Etiquetas K2/K3 descriptivas.
 
 local ScreenUI = {}
 
-local MenuDef = {[1] = { A = { title = "1004-P (A) MIXER", e1 = {id="m1_mix_sine", name="SINE"}, e2 = {id="m1_mix_tri", name="TRI"}, e3 = {id="m1_mix_saw", name="SAW"}, e4 = {id="m1_mix_pulse", name="PULSE"} }, B = { title = "1004-P (A) CORE", e1 = {id="m1_pwm", name="PWM"}, e2 = {id="m1_tune", name="TUNE"}, e3 = {id="m1_fine", name="FINE"}, k3 = "m1_range" } },
-    [2] = { A = { title = "1004-P (B) MIXER", e1 = {id="m2_mix_sine", name="SINE"}, e2 = {id="m2_mix_tri", name="TRI"}, e3 = {id="m2_mix_saw", name="SAW"}, e4 = {id="m2_mix_pulse", name="PULSE"} }, B = { title = "1004-P (B) CORE", e1 = {id="m2_pwm", name="PWM"}, e2 = {id="m2_tune", name="TUNE"}, e3 = {id="m2_fine", name="FINE"}, k3 = "m2_range" } },
-    [3] = { A = { title = "1023 - OSC 1", e1 = {id="m3_pwm1", name="PWM"}, e2 = {id="m3_tune1", name="TUNE"}, e3 = {id="m3_morph1", name="MORPH"}, k3 = "m3_range1" }, B = { title = "1023 - OSC 2", e1 = {id="m3_pwm2", name="PWM"}, e2 = {id="m3_tune2", name="TUNE"}, e3 = {id="m3_morph2", name="MORPH"}, k3 = "m3_range2" } },
-    [4] = { A = { title = "1016 NOISE", e1 = {id="m4_slow_rate", name="RATE"}, e2 = {id="m4_tilt1", name="TILT 1"}, e3 = {id="m4_tilt2", name="TILT 2"}, k2 = "m4_type1", k3 = "m4_type2" }, B = { title = "1036 S&H", e1 = {id="m4_clk_rate", name="CLOCK"}, e2 = {id="m4_prob_skew", name="SKEW"}, e3 = {id="m4_glide", name="GLIDE"} } },
-    [5] = { A = { title = "1005 STATE", e1 = {id="m5_mod_gain", name="MOD"}, e2 = {id="m5_unmod_gain", name="UNMOD"}, e3 = {id="m5_drive", name="DRIVE"}, k2 = "m5_state" }, B = { title = "1005 VCA", e1 = {id="m5_vca_base", name="BASE"}, e2 = {id="m5_vca_resp", name="RESP"}, e3 = {id="m5_xfade", name="XFADE"}, k2 = "m5_state" } },
-    [6] = { A = { title = "1047 (A) FILTER", e1 = {id="m6_cutoff", name="FREQ"}, e2 = {id="m6_fine", name="FINE"}, e3 = {id="m6_q", name="RES"}, e4 = {id="m6_jfet", name="DRIVE"} }, B = { title = "1047 (A) NOTCH", e1 = {id="m6_notch", name="OFS"}, e2 = {id="m6_final_q", name="DECAY"}, e3 = {id="m6_out_lvl", name="LEVEL"} } },
-    [7] = { A = { title = "1047 (B) FILTER", e1 = {id="m7_cutoff", name="FREQ"}, e2 = {id="m7_fine", name="FINE"}, e3 = {id="m7_q", name="RES"}, e4 = {id="m7_jfet", name="DRIVE"} }, B = { title = "1047 (B) NOTCH", e1 = {id="m7_notch", name="OFS"}, e2 = {id="m7_final_q", name="DECAY"}, e3 = {id="m7_out_lvl", name="LEVEL"} } },
-    [8] = { A = { title = "NEXUS MASTER", e1 = {id="m8_cut_l", name="VCF L"}, e2 = {id="m8_cut_r", name="VCF R"}, e3 = {id="m8_res", name="RES"}, e4 = {id="m8_drive", name="DRIVE"}, k2 = "m8_filt_byp", k3 = "m8_adc_mon" }, B = { title = "NEXUS TAPE", e1 = {id="m8_tape_time", name="TIME"}, e2 = {id="m8_tape_fb", name="FDBK"}, e3 = {id="m8_tape_mix", name="MIX"}, e4 = {id="m8_wow", name="WOW"}, k2 = "m8_tape_sat", k3 = "m8_tape_mute" } }
+local MenuDef = {[1] = { A = { title = "1004-P (A) MIXER", e1 = {id="m1_mix_sine", name="SINE"}, e2 = {id="m1_mix_tri", name="TRI"}, e3 = {id="m1_mix_saw", name="SAW"}, e4 = {id="m1_mix_pulse", name="PULSE"} }, B = { title = "1004-P (A) CORE", e1 = {id="m1_pwm", name="PWM"}, e2 = {id="m1_tune", name="TUNE"}, e3 = {id="m1_fine", name="FINE"}, k3 = {id="m1_range", name="RNG"} } },[2] = { A = { title = "1004-P (B) MIXER", e1 = {id="m2_mix_sine", name="SINE"}, e2 = {id="m2_mix_tri", name="TRI"}, e3 = {id="m2_mix_saw", name="SAW"}, e4 = {id="m2_mix_pulse", name="PULSE"} }, B = { title = "1004-P (B) CORE", e1 = {id="m2_pwm", name="PWM"}, e2 = {id="m2_tune", name="TUNE"}, e3 = {id="m2_fine", name="FINE"}, k3 = {id="m2_range", name="RNG"} } },
+    [3] = { A = { title = "1023 - OSC 1", e1 = {id="m3_pwm1", name="PWM"}, e2 = {id="m3_tune1", name="TUNE"}, e3 = {id="m3_morph1", name="MORPH"}, k3 = {id="m3_range1", name="RNG"} }, B = { title = "1023 - OSC 2", e1 = {id="m3_pwm2", name="PWM"}, e2 = {id="m3_tune2", name="TUNE"}, e3 = {id="m3_morph2", name="MORPH"}, k3 = {id="m3_range2", name="RNG"} } },
+    [4] = { A = { title = "1016 NOISE", e1 = {id="m4_slow_rate", name="RATE"}, e2 = {id="m4_tilt1", name="TILT 1"}, e3 = {id="m4_tilt2", name="TILT 2"}, k2 = {id="m4_type1", name="N1"}, k3 = {id="m4_type2", name="N2"} }, B = { title = "1036 S&H", e1 = {id="m4_clk_rate", name="CLOCK"}, e2 = {id="m4_prob_skew", name="SKEW"}, e3 = {id="m4_glide", name="GLIDE"} } },[5] = { A = { title = "1005 STATE", e1 = {id="m5_mod_gain", name="MOD"}, e2 = {id="m5_unmod_gain", name="UNMOD"}, e3 = {id="m5_drive", name="DRIVE"}, k2 = {id="m5_state", name="ST"} }, B = { title = "1005 VCA", e1 = {id="m5_vca_base", name="BASE"}, e2 = {id="m5_vca_resp", name="RESP"}, e3 = {id="m5_xfade", name="XFADE"}, k2 = {id="m5_state", name="ST"} } },
+    [6] = { A = { title = "1047 (A) FILTER", e1 = {id="m6_q", name="RES"}, e2 = {id="m6_cutoff", name="FREQ"}, e3 = {id="m6_fine", name="FINE"}, e4 = {id="m6_jfet", name="DRIVE"} }, B = { title = "1047 (A) NOTCH", e1 = {id="m6_notch", name="NOTCH FRQ"}, e2 = {id="m6_final_q", name="KEY DCY"}, e3 = {id="m6_p_shift", name="P.SHIFT"} } },
+    [7] = { A = { title = "1047 (B) FILTER", e1 = {id="m7_q", name="RES"}, e2 = {id="m7_cutoff", name="FREQ"}, e3 = {id="m7_fine", name="FINE"}, e4 = {id="m7_jfet", name="DRIVE"} }, B = { title = "1047 (B) NOTCH", e1 = {id="m7_notch", name="NOTCH FRQ"}, e2 = {id="m7_final_q", name="KEY DCY"}, e3 = {id="m7_p_shift", name="P.SHIFT"} } },
+    [8] = { A = { title = "NEXUS MASTER", e1 = {id="m8_res", name="RES"}, e2 = {id="m8_cut_l", name="VCF L"}, e3 = {id="m8_cut_r", name="VCF R"}, e4 = {id="m8_drive", name="DRIVE"}, k2 = {id="m8_filt_byp", name="FILT"}, k3 = {id="m8_adc_mon", name="ADC"} }, B = { title = "NEXUS TAPE", e1 = {id="m8_tape_time", name="TIME"}, e2 = {id="m8_tape_fb", name="FDBK"}, e3 = {id="m8_tape_mix", name="MIX"}, e4 = {id="m8_wow", name="WOW"}, k2 = {id="m8_tape_sat", name="SAT"}, k3 = {id="m8_tape_mute", name="MUTE"} } }
 }
 
 local function grid_to_screen(x, y)
@@ -40,7 +37,6 @@ function ScreenUI.draw_idle(G)
                     base_bright = util.clamp(base_bright + audio_mod, 0, 14)
                 end
                 
-                -- Sincronización con Grid Físico (Pulsaciones y Conexiones)
                 local is_held = (G.focus.node_x == x and G.focus.node_y == y)
                 if is_held then 
                     base_bright = 15 
@@ -82,10 +78,10 @@ function ScreenUI.draw_idle(G)
     end
     screen.aa(0)
     
-    -- Telemetría Dinámica
-    local vol = math.floor(params:get("m8_master_vol") * 100)
-    local vcf1 = params:get("m8_cut_l")
-    local vcf2 = params:get("m8_cut_r")
+    -- BLINDAJE ANTI-CRASH: Uso de 'or' para evitar nil indexing si el parámetro no existe aún
+    local vol = math.floor((params:get("m8_master_vol") or 1.0) * 100)
+    local vcf1 = params:get("m8_cut_l") or 20000
+    local vcf2 = params:get("m8_cut_r") or 20000
     
     screen.level(15)
     screen.move(2, 62); screen.text("VOL: " .. vol .. "%")
@@ -135,6 +131,19 @@ function ScreenUI.draw_node_menu(G)
     end
 end
 
+local function draw_param(def_e, x, y, label)
+    if not def_e then return end
+    screen.level(4); screen.move(x, y); screen.text(label .. " " .. def_e.name .. ": ")
+    screen.level(15)
+    
+    -- Interceptor visual para formatear Hz
+    if string.find(def_e.id, "cut") or string.find(def_e.id, "tune") then
+        screen.text(fmt_hz(params:get(def_e.id)))
+    else
+        screen.text(params:string(def_e.id))
+    end
+end
+
 function ScreenUI.draw_module_menu(G)
     if not G.focus.module_id or not G.focus.page then return end
     local def = MenuDef[G.focus.module_id][G.focus.page]
@@ -144,26 +153,22 @@ function ScreenUI.draw_module_menu(G)
     screen.move(64, 10)
     screen.text_center(def.title)
 
-    if def.e1 then 
-        screen.level(4); screen.move(2, 30); screen.text("E1 " .. def.e1.name .. ": ")
-        screen.level(15); screen.text(params:string(def.e1.id)) 
-    end
-    if def.e2 then 
-        screen.level(4); screen.move(2, 45); screen.text("E2 " .. def.e2.name .. ": ")
-        screen.level(15); screen.text(params:string(def.e2.id)) 
-    end
-    if def.e3 then 
-        screen.level(4); screen.move(2, 60); screen.text("E3 " .. def.e3.name .. ": ")
-        screen.level(15); screen.text(params:string(def.e3.id)) 
-    end
-    if def.e4 then 
-        screen.level(4); screen.move(70, 60); screen.text("E4 " .. def.e4.name .. ": ")
-        screen.level(15); screen.text(params:string(def.e4.id)) 
-    end
+    draw_param(def.e1, 2, 30, "E1")
+    draw_param(def.e2, 2, 45, "E2")
+    draw_param(def.e3, 2, 60, "E3")
+    draw_param(def.e4, 70, 60, "E4")
 
     screen.level(4)
-    if def.k2 then screen.move(126, 30); screen.text_right("K2: " .. params:string(def.k2)) end
-    if def.k3 then screen.move(126, 45); screen.text_right("K3: " .. params:string(def.k3)) end
+    if def.k2 then 
+        local k2_id = type(def.k2) == "table" and def.k2.id or def.k2
+        local k2_name = type(def.k2) == "table" and def.k2.name or "K2"
+        screen.move(126, 30); screen.text_right("K2 " .. k2_name .. ": " .. params:string(k2_id)) 
+    end
+    if def.k3 then 
+        local k3_id = type(def.k3) == "table" and def.k3.id or def.k3
+        local k3_name = type(def.k3) == "table" and def.k3.name or "K3"
+        screen.move(126, 45); screen.text_right("K3 " .. k3_name .. ": " .. params:string(k3_id)) 
+    end
 end
 
 function ScreenUI.draw(G)
@@ -248,8 +253,8 @@ function ScreenUI.key(G, n, z)
         if not def then return end
         
         local target_param = nil
-        if n == 2 then target_param = def.k2
-        elseif n == 3 then target_param = def.k3 end
+        if n == 2 and def.k2 then target_param = type(def.k2) == "table" and def.k2.id or def.k2 end
+        if n == 3 and def.k3 then target_param = type(def.k3) == "table" and def.k3.id or def.k3 end
         
         if target_param then
             local p_idx = params.lookup[target_param]
