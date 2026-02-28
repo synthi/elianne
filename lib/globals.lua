@@ -1,4 +1,4 @@
--- lib/globals.lua v0.3
+-- lib/globals.lua v0.3.1
 -- CHANGELOG v0.3:
 -- 1. NOMBRES: Actualizados nombres de salidas (Triangle, Sine 1/2, RM Out).
 -- 2. PARCHEO: Añadido parcheo por defecto (Osc 1 a Nexus).
@@ -23,6 +23,8 @@ G.focus = {
 G.patch = {}
 G.nodes = {}
 G.grid_map = {}
+
+G.module_names = {"1004-P (A)", "1004-P (B)", "1023 DUAL VCO", "1016/36 NOISE", "1005 MODAMP", "1047 (A)", "1047 (B)", "NEXUS"}
 
 function G.init_nodes()
     for x = 1, 16 do
