@@ -17,6 +17,7 @@ function GridUI.init(G)
             GridUI.cache[x][y] = -1
         end
     end
+    G.grid_cache = GridUI.cache -- ENLACE FORENSE: Permite a la pantalla leer la caché sin hacer include
 end
 
 function GridUI.key(G, g, x, y, z)
