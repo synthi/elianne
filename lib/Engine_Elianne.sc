@@ -1,8 +1,9 @@
-// lib/Engine_Elianne.sc v0.7
-// CHANGELOG v0.7:
-// 1. FIX FATAL: Eliminado patch_row (C-Stack Overflow).
-// 2. OPTIMIZACIÓN EXTREMA: Matriz dividida en 64 Synths paralelos para eliminar el tiempo de compilación de 1.5 minutos.
-// 3. INTEGRIDAD: Archivo generado al 100% sin marcadores de posición.
+// lib/Engine_Elianne.sc v0.8
+// CHANGELOG v0.8:
+// 1. DSP: Modelado físico del núcleo 1004-P (Tri/Saw simultáneos, PWM de doble flanco, glitch de condensador).
+// 2. DSP: Modelado del Notch 1047 (Suma asimétrica de SVF paralelos).
+// 3. DSP: Integración de emulación de cinta y banco de ruido de Avant_lab_V.
+// 4. FIX: Lógica de Tape Mute corregida. Añadido VCA Master.
 
 Engine_Elianne : CroneEngine {
     var <bus_nodes_tx;
@@ -48,7 +49,7 @@ Engine_Elianne : CroneEngine {
         }).add;
 
         // =====================================================================
-        // SYNTH 0B: FILA INDIVIDUAL DE LA MATRIZ (Evita el cuello de botella de compilación)
+        // SYNTH 0B: FILA INDIVIDUAL DE LA MATRIZ
         // =====================================================================
         SynthDef(\Elianne_MatrixRow, { arg out_bus;
             var tx = InFeedback.ar(bus_nodes_tx.index, 64);
@@ -58,7 +59,7 @@ Engine_Elianne : CroneEngine {
         }).add;
 
         // =====================================================================
-        // SYNTH 1 & 2: ARP 1004-T (Oscilador Complejo)
+        // SYNTH 1 & 2: ARP 1004-P (Oscilador Complejo - Modelado Físico)
         // =====================================================================
         SynthDef(\Elianne_1004T, {
             arg in_fm1, in_fm2, in_pwm, in_voct,
@@ -71,7 +72,7 @@ Engine_Elianne : CroneEngine {
                 
             var fm1, fm2, pwm_mod, voct, thermal;
             var base_freq, freq, pwm_final, phase;
-            var sig_tri, sig_saw, sig_pulse, sig_sine, mix;
+            var raw_tri, sqr, sig_tri, sig_saw, sig_pulse, sig_sine, mix;
             
             fm1 = InFeedback.ar(in_fm1) * In.kr(lvl_fm1);
             fm2 = InFeedback.ar(in_fm2) * In.kr(lvl_fm2);
@@ -84,16 +85,23 @@ Engine_Elianne : CroneEngine {
             freq = (K2A.ar(base_freq + fine) + (fm1 * 50) + (fm2 * 50)) * (2.0 ** (voct + thermal));
             pwm_final = (pwm_base + pwm_mod).clip(0.05, 0.95);
             
+            // Núcleo Dual ARP 2500
             phase = Phasor.ar(0, freq * SampleDur.ir, 0, 1);
-            sig_tri = (phase * 2 - 1).abs * 2 - 1;
-            sig_saw = phase * 2 - 1;
-            sig_pulse = (phase > pwm_final) * 2 - 1;
-            sig_sine = sig_tri - (sig_tri.pow(3) / 6.0);
+            raw_tri = (phase * 2 - 1).abs * 2 - 1 + 0.01; // Asimetría DC térmica
+            sqr = (phase > 0.5) * 2 - 1;
+            
+            sig_tri = LeakDC.ar(raw_tri);
+            // Sierra con glitch de descarga de condensador
+            sig_saw = (phase * 2 - 1) + (HPF.ar(Impulse.ar(freq), 10000) * 0.1);
+            // Pulso derivado del triángulo (Modulación de doble flanco)
+            sig_pulse = (sig_tri > ((pwm_final * 2) - 1)) * 2 - 1;
+            // Seno por conformador polinómico + distorsión de cruce de diodos
+            sig_sine = sig_tri - (sig_tri.pow(3) / 6.0) + (sqr * 0.02);
             
             mix = (sig_sine * mix_sine) + (sig_tri * mix_tri) + (sig_saw * mix_saw) + (sig_pulse * mix_pulse);
             
             Out.ar(out_main, mix * In.kr(lvl_main));
-            Out.ar(out_inv, (mix * -1.0) * In.kr(lvl_inv));
+            Out.ar(out_inv, sig_tri * In.kr(lvl_inv)); // Ahora es Triangle Out
             Out.ar(out_sine, sig_sine * In.kr(lvl_sine));
             Out.ar(out_pulse, sig_pulse * In.kr(lvl_pulse));
         }).add;
@@ -111,8 +119,8 @@ Engine_Elianne : CroneEngine {
                 phys_bus;
                 
             var thermal;
-            var fm1, pv1, voct1, pwm_mod1, freq1, ph1, tri1, saw1, pul1, sin1, sqr1, waves1, mix1;
-            var fm2, pv2, voct2, pwm_mod2, freq2, ph2, tri2, saw2, pul2, sin2, sqr2, waves2, mix2;
+            var fm1, pv1, voct1, pwm_mod1, freq1, ph1, rtri1, sqr1, tri1, saw1, pul1, sin1, waves1, mix1;
+            var fm2, pv2, voct2, pwm_mod2, freq2, ph2, rtri2, sqr2, tri2, saw2, pul2, sin2, waves2, mix2;
             
             thermal = LFNoise2.ar(0.01) * K2A.ar(In.kr(phys_bus + 0));
             
@@ -122,12 +130,15 @@ Engine_Elianne : CroneEngine {
             voct1 = pv1 * pv1_mode;
             pwm_mod1 = pv1 * (1 - pv1_mode);
             freq1 = (K2A.ar(Select.kr(range1, [tune1, tune1*0.01])) + (fm1*50)) * (2.0 ** (voct1 + thermal));
+            
             ph1 = Phasor.ar(0, freq1 * SampleDur.ir, 0, 1);
-            tri1 = (ph1 * 2 - 1).abs * 2 - 1;
-            saw1 = ph1 * 2 - 1;
-            pul1 = (ph1 > (pwm1 + pwm_mod1).clip(0.05, 0.95)) * 2 - 1;
-            sin1 = tri1 - (tri1.pow(3) / 6.0);
+            rtri1 = (ph1 * 2 - 1).abs * 2 - 1 + 0.01;
             sqr1 = (ph1 > 0.5) * 2 - 1;
+            tri1 = LeakDC.ar(rtri1);
+            saw1 = (ph1 * 2 - 1) + (HPF.ar(Impulse.ar(freq1), 10000) * 0.1);
+            pul1 = (tri1 > (((pwm1 + pwm_mod1).clip(0.05, 0.95) * 2) - 1)) * 2 - 1;
+            sin1 = tri1 - (tri1.pow(3) / 6.0) + (sqr1 * 0.02);
+            
             waves1 =[sin1, tri1, saw1, sqr1, pul1, sin1.neg, tri1, saw1.neg, sqr1, pul1.neg];
             mix1 = SelectX.ar(morph1 * 9.0, waves1);
             
@@ -137,23 +148,26 @@ Engine_Elianne : CroneEngine {
             voct2 = pv2 * pv2_mode;
             pwm_mod2 = pv2 * (1 - pv2_mode);
             freq2 = (K2A.ar(Select.kr(range2,[tune2, tune2*0.01])) + (fm2*50)) * (2.0 ** (voct2 + thermal));
+            
             ph2 = Phasor.ar(0, freq2 * SampleDur.ir, 0, 1);
-            tri2 = (ph2 * 2 - 1).abs * 2 - 1;
-            saw2 = ph2 * 2 - 1;
-            pul2 = (ph2 > (pwm2 + pwm_mod2).clip(0.05, 0.95)) * 2 - 1;
-            sin2 = tri2 - (tri2.pow(3) / 6.0);
+            rtri2 = (ph2 * 2 - 1).abs * 2 - 1 + 0.01;
             sqr2 = (ph2 > 0.5) * 2 - 1;
+            tri2 = LeakDC.ar(rtri2);
+            saw2 = (ph2 * 2 - 1) + (HPF.ar(Impulse.ar(freq2), 10000) * 0.1);
+            pul2 = (tri2 > (((pwm2 + pwm_mod2).clip(0.05, 0.95) * 2) - 1)) * 2 - 1;
+            sin2 = tri2 - (tri2.pow(3) / 6.0) + (sqr2 * 0.02);
+            
             waves2 =[sin2, tri2, saw2, sqr2, pul2, sin2.neg, tri2, saw2.neg, sqr2, pul2.neg];
             mix2 = SelectX.ar(morph2 * 9.0, waves2);
             
             Out.ar(out_o1, mix1 * In.kr(lvl_o1));
             Out.ar(out_o2, mix2 * In.kr(lvl_o2));
-            Out.ar(out_i1, (mix1 * -1.0) * In.kr(lvl_i1));
-            Out.ar(out_i2, (mix2 * -1.0) * In.kr(lvl_i2));
+            Out.ar(out_i1, sin1 * In.kr(lvl_i1)); // Ahora es Sine 1 Out
+            Out.ar(out_i2, sin2 * In.kr(lvl_i2)); // Ahora es Sine 2 Out
         }).add;
 
         // =====================================================================
-        // SYNTH 4: ARP 1016/36 (Noise & Random S&H)
+        // SYNTH 4: ARP 1016/36 (Noise & Random S&H - Avant_lab_V Engine)
         // =====================================================================
         SynthDef(\Elianne_1016, {
             arg in_sig, in_clk, out_n1, out_n2, out_slow, out_step,
@@ -170,12 +184,13 @@ Engine_Elianne : CroneEngine {
             clk_ext = InFeedback.ar(in_clk) * In.kr(lvl_clk);
             droop_amt = In.kr(phys_bus + 1);
             
+            // Banco de ruido calibrado de Avant_lab_V
             n_pink = PinkNoise.ar;
-            n_white = WhiteNoise.ar;
+            n_white = WhiteNoise.ar * 0.5;
             n_crackle = Crackle.ar(1.9);
-            n_rain = Dust2.ar(LFNoise1.kr(0.5).exprange(100, 1000));
-            n_lorenz = LFNoise0.ar(LFNoise1.kr(0.1).exprange(10, 100));
-            n_grit = Latch.ar(WhiteNoise.ar, Dust.ar(50));
+            n_rain = Dust2.ar(LFNoise1.kr(0.3).exprange(300, 2000)) * 0.9;
+            n_lorenz = LFNoise1.ar(500) * 0.7;
+            n_grit = Latch.ar(WhiteNoise.ar, Dust.ar(50)) * 0.4;
             
             noise1 = Select.ar(type1,[n_pink, n_white, n_crackle, n_rain, n_lorenz, n_grit]);
             noise2 = Select.ar(type2,[n_pink, n_white, n_crackle, n_rain, n_lorenz, n_grit]);
@@ -251,13 +266,13 @@ Engine_Elianne : CroneEngine {
             final_sig = core_sig * vca_final;
             
             Out.ar(out_main, final_sig * In.kr(lvl_main));
-            Out.ar(out_inv, (final_sig * -1.0) * In.kr(lvl_inv));
+            Out.ar(out_inv, rm_sig * In.kr(lvl_inv)); // Ahora es RM Out puro
             Out.ar(out_sum, sum_sig * In.kr(lvl_sum));
             Out.ar(out_diff, diff_sig * In.kr(lvl_diff));
         }).add;
 
         // =====================================================================
-        // SYNTH 6 & 7: ARP 1047 (Multimode Filter / Resonator)
+        // SYNTH 6 & 7: ARP 1047 (Multimode Filter / Resonator - Dennis Colin Topology)
         // =====================================================================
         SynthDef(\Elianne_1047, {
             arg in_aud, in_cv1, in_res, in_cv2,
@@ -294,10 +309,11 @@ Engine_Elianne : CroneEngine {
             bp = SVF.ar(drive_aud, f_mod, q_mod, 0, 1, 0, 0, 0);
             hp = SVF.ar(drive_aud, f_mod, q_mod, 0, 0, 1, 0, 0);
             
-            notch_f = f_mod * (2.0 ** (notch_ofs * 3.0));
-            notch_svf_lp = SVF.ar(drive_aud, notch_f, q_mod, 1, 0, 0, 0, 0);
+            // Topología Notch de Dennis Colin (Suma de LP base y HP desplazado)
+            notch_f = (f_mod * (2.0 ** (notch_ofs * 3.0))).clip(10, 20000);
+            notch_svf_lp = SVF.ar(drive_aud, f_mod, q_mod, 1, 0, 0, 0, 0);
             notch_svf_hp = SVF.ar(drive_aud, notch_f, q_mod, 0, 0, 1, 0, 0);
-            notch = notch_svf_lp + (notch_svf_hp * 0.985); 
+            notch = notch_svf_lp + notch_svf_hp; 
             
             Out.ar(out_lp, lp * out_lvl * In.kr(lvl_lp));
             Out.ar(out_bp, bp * out_lvl * In.kr(lvl_bp));
@@ -306,7 +322,7 @@ Engine_Elianne : CroneEngine {
         }).add;
 
         // =====================================================================
-        // SYNTH 8: NEXUS (Mastering & Tape Echo)
+        // SYNTH 8: NEXUS (Mastering & Tape Echo - Avant_lab_V Engine)
         // =====================================================================
         SynthDef(\Elianne_Nexus, {
             arg in_ml, in_mr, in_al, in_ar,
@@ -315,12 +331,13 @@ Engine_Elianne : CroneEngine {
                 pan_ml, pan_mr, pan_al, pan_ar,
                 lvl_oml, lvl_omr, lvl_otl, lvl_otr,
                 cut_l=20000, cut_r=20000, res=0, tape_time=0.3, tape_fb=0.4, tape_mix=0.2,
-                filt_byp=0, adc_mon=0, tape_mute=0, drive=1.0, phys_bus;
+                filt_byp=0, adc_mon=0, tape_mute=0, drive=1.0, master_vol=1.0, phys_bus;
                 
             var ml, mr, adc, al, ar, sum;
             var filt_l, filt_r, filt_sig;
-            var wow_amt, flut_amt, tape_in, wow, flutter, tape_dt, tape_raw, tape_out;
+            var wow_amt, flut_amt, tape_in, wow, flutter, tape_time_lag, tape_dt, tape_raw, tape_sat_sig, tape_physics_cutoff, tape_out;
             var master, final_out;
+            var asym_sat = { |sig| (sig + 0.2).tanh - 0.2 };
             
             ml = Pan2.ar(InFeedback.ar(in_ml) * In.kr(lvl_ml), In.kr(pan_ml));
             mr = Pan2.ar(InFeedback.ar(in_mr) * In.kr(lvl_mr), In.kr(pan_mr));
@@ -334,21 +351,26 @@ Engine_Elianne : CroneEngine {
             filt_r = MoogFF.ar(sum[1], cut_r, res);
             filt_sig = Select.ar(K2A.ar(filt_byp), [[filt_l, filt_r], sum]);
             
+            // Tape Echo (Avant_lab_V Physics)
             wow_amt = K2A.ar(In.kr(phys_bus + 5));
             flut_amt = K2A.ar(In.kr(phys_bus + 6));
             tape_in = filt_sig + (LocalIn.ar(2) * tape_fb);
-            wow = LFNoise2.ar(0.5) * wow_amt * 0.05;
-            flutter = LFNoise1.ar(15) * flut_amt * 0.005;
-            tape_dt = (tape_time + wow + flutter).clip(0.01, 2.0);
+            
+            tape_time_lag = Lag3.kr(tape_time, 0.5);
+            wow = OnePole.kr(LFNoise2.kr(Rand(0.5, 2.0)) * wow_amt * 0.05, 0.95);
+            flutter = LFNoise1.kr(15) * flut_amt * 0.005;
+            tape_dt = (tape_time_lag + wow + flutter).clip(0.01, 2.0);
             
             tape_raw = DelayC.ar(tape_in, 2.2, tape_dt);
-            tape_out = OnePole.ar((tape_raw * 1.2).tanh, 0.4); 
+            tape_sat_sig = asym_sat.value(tape_raw * 1.5);
+            tape_physics_cutoff = LinExp.kr(tape_time_lag.max(0.01), 0.01, 2.0, 15000, 3000);
+            tape_out = LPF.ar(tape_sat_sig, tape_physics_cutoff);
             
             LocalOut.ar(tape_out); 
             
-            master = (filt_sig * (1.0 - tape_mix)) + (tape_out * tape_mix);
-            master = master * (1.0 - tape_mute);
-            final_out = master + (adc * adc_mon);
+            // Mezcla Final (Mute solo afecta al tape)
+            master = filt_sig + (tape_out * tape_mix * (1.0 - tape_mute));
+            final_out = (master + (adc * adc_mon)) * master_vol;
             
             Out.ar(out_ml, final_out[0] * In.kr(lvl_oml));
             Out.ar(out_mr, final_out[1] * In.kr(lvl_omr));
@@ -542,6 +564,7 @@ Engine_Elianne : CroneEngine {
         this.addCommand("m8_filt_byp", "i", { |msg| synth_mods[7].set(\filt_byp, msg[1]) });
         this.addCommand("m8_adc_mon", "f", { |msg| synth_mods[7].set(\adc_mon, msg[1]) });
         this.addCommand("m8_tape_mute", "i", { |msg| synth_mods[7].set(\tape_mute, msg[1]) });
+        this.addCommand("m8_master_vol", "f", { |msg| synth_mods[7].set(\master_vol, msg[1]) });
     }
 
     free {
