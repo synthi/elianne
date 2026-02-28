@@ -1,4 +1,4 @@
--- lib/params_setup.lua v0.25
+-- lib/params_setup.lua v0.26
 -- CHANGELOG v0.24:
 -- 1. FIX FATAL: Añadidos parámetros faltantes (m6_jfet, m7_jfet, m8_drive, etc.) que causaban crash.
 -- 2. ORGANIZACIÓN: Eliminada carpeta State Toggles, parámetros movidos a sus módulos correspondientes.
@@ -124,6 +124,7 @@ function Params.init(G)
     params:add{type = "option", id = "m8_adc_mon", name = "Nexus ADC Mon", options = {"OFF", "ON"}, default = 1, action = function(x) engine.m8_adc_mon(x - 1) end}
     params:add{type = "option", id = "m8_tape_sat", name = "Nexus Tape Sat", options = {"CLEAN", "PUSHED", "CRUSHED"}, default = 1} -- Se usará en futuras expansiones DSP
     params:add{type = "option", id = "m8_tape_mute", name = "Nexus Tape Mute", options = {"PLAY", "MUTE"}, default = 1, action = function(x) engine.m8_tape_mute(x - 1) end}
+    params:add{type = "control", id = "m8_master_vol", name = "Master Volume", controlspec = controlspec.new(0.0, 2.0, 'lin', 0.01, 1.0), action = function(x) engine.m8_master_vol(x) end}
 
     -- ==========================================
     -- ATTENUVERTERS OCULTOS (Para Snapshots)
