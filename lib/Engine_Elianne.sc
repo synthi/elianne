@@ -1,4 +1,4 @@
-// lib/Engine_Elianne.sc v0.8.2
+// lib/Engine_Elianne.sc v0.8.3
 // CHANGELOG v0.8:
 // 1. DSP: Modelado físico del núcleo 1004-P (Tri/Saw simultáneos, PWM de doble flanco, glitch de condensador).
 // 2. DSP: Modelado del Notch 1047 (Suma asimétrica de SVF paralelos).
@@ -571,6 +571,7 @@ Engine_Elianne : CroneEngine {
         this.addCommand("m8_adc_mon", "f", { |msg| synth_mods[7].set(\adc_mon, msg[1]) });
         this.addCommand("m8_tape_mute", "i", { |msg| synth_mods[7].set(\tape_mute, msg[1]) });
         this.addCommand("m8_master_vol", "f", { |msg| synth_mods[7].set(\master_vol, msg[1]) });
+        this.addCommand("m8_erosion", "f", { |msg| synth_mods[7].set(\tape_erosion, msg[1]) });
     }
 
     free {
