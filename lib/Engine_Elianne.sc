@@ -1,8 +1,11 @@
-// lib/Engine_Elianne.sc v0.9
-// CHANGELOG v0.8.2:
-// 1. DSP: Implementación masiva de "System Age". 22 generadores Brownianos independientes.
-// 2. DSP: Añadido t_ping a los filtros 1047 para disparo manual.
-// 3. FIX: Resonancia del Nexus multiplicada por 4.0 para permitir auto-oscilación real.
+// lib/Engine_Elianne.sc v0.100
+// CHANGELOG v0.100:
+// 1. OPTIMIZATION: Dynamic Node Pausing (pause_matrix_row).
+// 2. OPTIMIZATION: System Age movido a .kr con K2A.ar para ahorrar 10% CPU.
+// 3. DSP: Falso Seno con inyección DC y LeakDC.
+// 4. DSP: Crossover Distortion en 1005.
+// 5. DSP: Histéresis magnética en Nexus Tape.
+// 6. DSP: Ping 1047 inyectado directamente al núcleo de audio.
 
 Engine_Elianne : CroneEngine {
     var <bus_nodes_tx;
@@ -27,7 +30,7 @@ Engine_Elianne : CroneEngine {
         bus_pans = Bus.control(context.server, 64);
         bus_physics = Bus.control(context.server, 10);
         
-        64.do { |i| bus_levels.setAt(i, 1.0) };
+        64.do { |i| bus_levels.setAt(i, 0.5) }; // Default 0.5
         
         synth_mods = Array.newClear(8);
         synth_matrix_rows = Array.newClear(64);
@@ -35,7 +38,6 @@ Engine_Elianne : CroneEngine {
 
         context.server.sync;
 
-        // PUENTE OSC PARA TELEMETRÍA
         OSCFunc({ |msg|
             NetAddr("127.0.0.1", 10111).sendMsg("/elianne_levels", *msg.drop(3));
         }, '/elianne_levels', context.server.addr).fix;
@@ -78,11 +80,11 @@ Engine_Elianne : CroneEngine {
             pwm_mod = InFeedback.ar(in_pwm) * In.kr(lvl_pwm);
             voct = InFeedback.ar(in_voct) * In.kr(lvl_voct);
             
-            // SYSTEM AGE: Red Orgánica Independiente
-            sys_age = K2A.ar(In.kr(phys_bus + 0)) * 10.0; // Escala 0.0-0.1 a 0.0-1.0 interno
-            age_pitch = LFNoise2.ar(0.0113 + seed_offset) * sys_age * 0.02;
-            age_shape = LFNoise2.ar(0.0171 + seed_offset) * sys_age * 0.05;
-            age_amp = 1.0 - (LFNoise2.ar(0.0233 + seed_offset).range(0, 0.1) * sys_age);
+            // SYSTEM AGE: Optimizado a .kr
+            sys_age = In.kr(phys_bus + 0) * 10.0; 
+            age_pitch = K2A.ar(LFNoise2.kr(0.0113 + seed_offset)) * sys_age * 0.02;
+            age_shape = K2A.ar(LFNoise2.kr(0.0171 + seed_offset)) * sys_age * 0.05;
+            age_amp = 1.0 - (K2A.ar(LFNoise2.kr(0.0233 + seed_offset)).range(0, 0.1) * sys_age);
             
             base_freq = Select.kr(range,[tune, tune * 0.01]);
             freq = (K2A.ar(base_freq + fine) + (fm1 * 50) + (fm2 * 50)) * (2.0 ** (voct + age_pitch));
@@ -92,10 +94,11 @@ Engine_Elianne : CroneEngine {
             raw_tri = (phase * 2 - 1).abs * 2 - 1 + age_shape; 
             sqr = (phase > 0.5) * 2 - 1;
             
-            sig_tri = LeakDC.ar(raw_tri);
+            // FALSO SENO: Inyección DC y LeakDC
+            sig_tri = LeakDC.ar(raw_tri + 0.015);
             sig_saw = (phase * 2 - 1) + (HPF.ar(Impulse.ar(freq), 10000) * 0.1);
             sig_pulse = (sig_tri > ((pwm_final * 2) - 1)) * 2 - 1;
-            sig_sine = sig_tri - (sig_tri.pow(3) / 6.0) + (sqr * 0.02);
+            sig_sine = LeakDC.ar(sig_tri - (sig_tri.pow(3) / 6.0)) + (sqr * 0.02);
             
             mix = ((sig_sine * mix_sine) + (sig_tri * mix_tri) + (sig_saw * mix_saw) + (sig_pulse * mix_pulse)) * age_amp;
             
@@ -121,13 +124,13 @@ Engine_Elianne : CroneEngine {
             var fm1, pv1, voct1, pwm_mod1, freq1, ph1, rtri1, sqr1, tri1, saw1, pul1, sin1, waves1, mix1;
             var fm2, pv2, voct2, pwm_mod2, freq2, ph2, rtri2, sqr2, tri2, saw2, pul2, sin2, waves2, mix2;
             
-            sys_age = K2A.ar(In.kr(phys_bus + 0)) * 10.0;
-            age_p1 = LFNoise2.ar(0.0127) * sys_age * 0.02;
-            age_s1 = LFNoise2.ar(0.0181) * sys_age * 0.05;
-            age_a1 = 1.0 - (LFNoise2.ar(0.0241).range(0, 0.1) * sys_age);
-            age_p2 = LFNoise2.ar(0.0139) * sys_age * 0.02;
-            age_s2 = LFNoise2.ar(0.0193) * sys_age * 0.05;
-            age_a2 = 1.0 - (LFNoise2.ar(0.0257).range(0, 0.1) * sys_age);
+            sys_age = In.kr(phys_bus + 0) * 10.0;
+            age_p1 = K2A.ar(LFNoise2.kr(0.0127)) * sys_age * 0.02;
+            age_s1 = K2A.ar(LFNoise2.kr(0.0181)) * sys_age * 0.05;
+            age_a1 = 1.0 - (K2A.ar(LFNoise2.kr(0.0241)).range(0, 0.1) * sys_age);
+            age_p2 = K2A.ar(LFNoise2.kr(0.0139)) * sys_age * 0.02;
+            age_s2 = K2A.ar(LFNoise2.kr(0.0193)) * sys_age * 0.05;
+            age_a2 = 1.0 - (K2A.ar(LFNoise2.kr(0.0257)).range(0, 0.1) * sys_age);
             
             // VCO 1
             fm1 = InFeedback.ar(in_fm1) * In.kr(lvl_fm1);
@@ -139,10 +142,10 @@ Engine_Elianne : CroneEngine {
             ph1 = Phasor.ar(0, freq1 * SampleDur.ir, 0, 1);
             rtri1 = (ph1 * 2 - 1).abs * 2 - 1 + age_s1;
             sqr1 = (ph1 > 0.5) * 2 - 1;
-            tri1 = LeakDC.ar(rtri1);
+            tri1 = LeakDC.ar(rtri1 + 0.015);
             saw1 = (ph1 * 2 - 1) + (HPF.ar(Impulse.ar(freq1), 10000) * 0.1);
             pul1 = (tri1 > (((pwm1 + pwm_mod1).clip(0.05, 0.95) * 2) - 1)) * 2 - 1;
-            sin1 = tri1 - (tri1.pow(3) / 6.0) + (sqr1 * 0.02);
+            sin1 = LeakDC.ar(tri1 - (tri1.pow(3) / 6.0)) + (sqr1 * 0.02);
             
             waves1 =[sin1, tri1, saw1, sqr1, pul1, sin1.neg, tri1, saw1.neg, sqr1, pul1.neg];
             mix1 = SelectX.ar(morph1 * 9.0, waves1) * age_a1;
@@ -157,10 +160,10 @@ Engine_Elianne : CroneEngine {
             ph2 = Phasor.ar(0, freq2 * SampleDur.ir, 0, 1);
             rtri2 = (ph2 * 2 - 1).abs * 2 - 1 + age_s2;
             sqr2 = (ph2 > 0.5) * 2 - 1;
-            tri2 = LeakDC.ar(rtri2);
+            tri2 = LeakDC.ar(rtri2 + 0.015);
             saw2 = (ph2 * 2 - 1) + (HPF.ar(Impulse.ar(freq2), 10000) * 0.1);
             pul2 = (tri2 > (((pwm2 + pwm_mod2).clip(0.05, 0.95) * 2) - 1)) * 2 - 1;
-            sin2 = tri2 - (tri2.pow(3) / 6.0) + (sqr2 * 0.02);
+            sin2 = LeakDC.ar(tri2 - (tri2.pow(3) / 6.0)) + (sqr2 * 0.02);
             
             waves2 =[sin2, tri2, saw2, sqr2, pul2, sin2.neg, tri2, saw2.neg, sqr2, pul2.neg];
             mix2 = SelectX.ar(morph2 * 9.0, waves2) * age_a2;
@@ -178,7 +181,7 @@ Engine_Elianne : CroneEngine {
             arg in_sig, in_clk, out_n1, out_n2, out_slow, out_step,
                 lvl_sig, lvl_clk, lvl_n1, lvl_n2, lvl_slow, lvl_step,
                 slow_rate=0.1, tilt1=0, tilt2=0, type1=0, type2=1,
-                clk_rate=2.0, prob_skew=0, glide=0, phys_bus;
+                clk_rate=2.0, prob_skew=0, glide=0, clk_thresh=0.1, phys_bus;
                 
             var sig, clk_ext, droop_amt;
             var n_pink, n_white, n_crackle, n_rain, n_lorenz, n_grit;
@@ -200,7 +203,7 @@ Engine_Elianne : CroneEngine {
             noise2 = Select.ar(type2,[n_pink, n_white, n_crackle, n_rain, n_lorenz, n_grit]);
             
             clk_int = Impulse.ar(clk_rate);
-            clk_trig = clk_int + Schmidt.ar(clk_ext, 0.0, 0.1);
+            clk_trig = clk_int + Schmidt.ar(clk_ext, clk_thresh, clk_thresh + 0.1);
             
             noise1 = BLowShelf.ar(noise1, 1000, 1.0, tilt1 * -12.0);
             noise1 = BHiShelf.ar(noise1, 1000, 1.0, tilt1 * 12.0);
@@ -234,11 +237,11 @@ Engine_Elianne : CroneEngine {
                 lvl_car, lvl_mod, lvl_vca, lvl_gate,
                 lvl_main, lvl_inv, lvl_sum, lvl_diff,
                 mod_gain=1, unmod_gain=1, drive=0.2, vca_base=0, vca_resp=0.5,
-                xfade=0.05, state_mode=0, phys_bus;
+                xfade=0.05, state_mode=0, gate_thresh=0.5, phys_bus;
                 
             var car, mod, vca_cv, gate_sig, c_bleed, m_bleed, sys_age, age_rm;
             var hilb_c, hilb_m, sum_sig, diff_sig;
-            var rm_raw, rm_sig, gate_trig, state_flip, current_state, state_smooth;
+            var car_cross, mod_cross, rm_raw, rm_sig, gate_trig, state_flip, current_state, state_smooth;
             var core_sig, vca_env, vca_final, final_sig;
             
             car = InFeedback.ar(in_car) * In.kr(lvl_car);
@@ -246,8 +249,8 @@ Engine_Elianne : CroneEngine {
             vca_cv = InFeedback.ar(in_vca) * In.kr(lvl_vca);
             gate_sig = InFeedback.ar(in_gate) * In.kr(lvl_gate);
             
-            sys_age = K2A.ar(In.kr(phys_bus + 0)) * 10.0;
-            age_rm = LFNoise2.ar(0.018) * sys_age * 0.1;
+            sys_age = In.kr(phys_bus + 0) * 10.0;
+            age_rm = K2A.ar(LFNoise2.kr(0.018)) * sys_age * 0.1;
             
             c_bleed = K2A.ar(In.kr(phys_bus + 2)) + age_rm;
             m_bleed = K2A.ar(In.kr(phys_bus + 3));
@@ -257,10 +260,13 @@ Engine_Elianne : CroneEngine {
             sum_sig = (hilb_c[0] * hilb_m[0]) - (hilb_c[1] * hilb_m[1]);
             diff_sig = (hilb_c[0] * hilb_m[0]) + (hilb_c[1] * hilb_m[1]);
             
-            rm_raw = (car + c_bleed) * (mod + m_bleed) * (1.0 + (drive * 5));
+            // CROSSOVER DISTORTION
+            car_cross = (car.abs - 0.02).max(0) * car.sign;
+            mod_cross = (mod.abs - 0.02).max(0) * mod.sign;
+            rm_raw = (car_cross + c_bleed) * (mod_cross + m_bleed) * (1.0 + (drive * 5));
             rm_sig = OnePole.ar(rm_raw.tanh, 0.4);
             
-            gate_trig = Schmidt.ar(gate_sig, 0.5, 0.6);
+            gate_trig = Schmidt.ar(gate_sig, gate_thresh, gate_thresh + 0.1);
             state_flip = ToggleFF.ar(gate_trig);
             
             current_state = Select.ar(K2A.ar(state_mode),[state_flip, DC.ar(1), DC.ar(0)]);
@@ -301,11 +307,10 @@ Engine_Elianne : CroneEngine {
             cv2 = InFeedback.ar(in_cv2) * In.kr(lvl_cv2);
             p_shift = K2A.ar(In.kr(phys_bus + 4));
             
-            sys_age = K2A.ar(In.kr(phys_bus + 0)) * 10.0;
-            age_fc = LFNoise2.ar(0.0149 + seed_offset) * sys_age * 0.05;
-            age_q = LFNoise2.ar(0.0197 + seed_offset) * sys_age * 0.2;
+            sys_age = In.kr(phys_bus + 0) * 10.0;
+            age_fc = K2A.ar(LFNoise2.kr(0.0149 + seed_offset)) * sys_age * 0.05;
+            age_q = K2A.ar(LFNoise2.kr(0.0197 + seed_offset)) * sys_age * 0.2;
             
-            // Ping Manual + CV
             ping_trig = (Schmidt.ar(cv2, 0.5, 0.6) * cv2_mode) + K2A.ar(t_ping);
             ping_env = EnvGen.ar(Env.perc(0.001, final_q * 0.1), ping_trig);
             cv2_mod = cv2 * (1 - cv2_mode);
@@ -317,7 +322,8 @@ Engine_Elianne : CroneEngine {
             q_mod = (q + (res_cv * 10) + (ping_env * 500)) * (1.0 + age_q);
             q_mod = q_mod.clip(0.1, 500);
             
-            drive_raw = aud * jfet;
+            // PING INJECTION AL AUDIO
+            drive_raw = (aud * jfet) + (ping_trig * 0.5);
             drive_aud = OnePole.ar(drive_raw.tanh, 0.4);
             
             lp = SVF.ar(drive_aud, f_mod, q_mod, 1, 0, 0, 0, 0);
@@ -353,7 +359,6 @@ Engine_Elianne : CroneEngine {
             var wow_amt, flut_amt, tape_in, wow, flutter, tape_time_lag, tape_dt, tape_raw, tape_sat_sig, tape_physics_cutoff, tape_out;
             var loop_dust_trig, loop_dropout_env, loop_gain_loss;
             var master, final_out;
-            var asym_sat = { |sig| (sig + 0.2).tanh - 0.2 };
             
             ml = Pan2.ar(InFeedback.ar(in_ml) * In.kr(lvl_ml), In.kr(pan_ml));
             mr = Pan2.ar(InFeedback.ar(in_mr) * In.kr(lvl_mr), In.kr(pan_mr));
@@ -363,11 +368,10 @@ Engine_Elianne : CroneEngine {
             
             sum = (ml + mr + al + ar) * drive;
             
-            sys_age = K2A.ar(In.kr(phys_bus + 0)) * 10.0;
-            age_vcf_l = LFNoise2.ar(0.0151) * sys_age * 0.05;
-            age_vcf_r = LFNoise2.ar(0.0163) * sys_age * 0.05;
+            sys_age = In.kr(phys_bus + 0) * 10.0;
+            age_vcf_l = K2A.ar(LFNoise2.kr(0.0151)) * sys_age * 0.05;
+            age_vcf_r = K2A.ar(LFNoise2.kr(0.0163)) * sys_age * 0.05;
             
-            // Resonancia x 4.0 para auto-oscilación
             filt_l = MoogFF.ar(sum[0], (cut_l * (1.0 + age_vcf_l)).clip(20, 20000), res * 4.0);
             filt_r = MoogFF.ar(sum[1], (cut_r * (1.0 + age_vcf_r)).clip(20, 20000), res * 4.0);
             filt_sig = Select.ar(K2A.ar(filt_byp), [[filt_l, filt_r], sum]);
@@ -382,11 +386,12 @@ Engine_Elianne : CroneEngine {
             tape_dt = (tape_time_lag + wow + flutter).clip(0.01, 2.0);
             
             tape_raw = DelayC.ar(tape_in, 2.2, tape_dt);
-            tape_sat_sig = asym_sat.value(tape_raw * 1.5);
+            // TAPE HYSTERESIS
+            tape_sat_sig = (tape_raw + (Delay1.ar(tape_raw) * 0.2)).tanh;
+            
             tape_physics_cutoff = LinExp.kr(tape_time_lag.max(0.01), 0.01, 2.0, 15000, 3000);
             tape_out = LPF.ar(tape_sat_sig, tape_physics_cutoff);
             
-            // Tape Erosion (Avant_lab_V)
             loop_dust_trig = Dust.kr(tape_erosion * 15);
             loop_dropout_env = Decay.kr(loop_dust_trig, 0.1);
             loop_gain_loss = (loop_dropout_env * tape_erosion).clip(0, 0.9);
@@ -483,14 +488,12 @@ Engine_Elianne : CroneEngine {
         // COMANDOS OSC (LUA -> SC)
         // =====================================================================
         
-        this.addCommand("patch_set", "iif", { |msg| 
-            var dst = msg[1] - 1; 
-            var src = msg[2] - 1;
-            var val = msg[3];
-            
-            matrix_state[dst][src] = val;
-            synth_matrix_rows[dst].set(\gains, matrix_state[dst]);
+        this.addCommand("patch_row", "iffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", { |msg| 
+            synth_matrix_rows[msg[1]].set(\gains, msg.drop(2));
         });
+        
+        this.addCommand("pause_matrix_row", "i", { |msg| synth_matrix_rows[msg[1]].run(false) });
+        this.addCommand("resume_matrix_row", "i", { |msg| synth_matrix_rows[msg[1]].run(true) });
 
         this.addCommand("set_in_level", "if", { |msg| bus_levels.setAt(msg[1] - 1, msg[2]) });
         this.addCommand("set_out_level", "if", { |msg| bus_levels.setAt(msg[1] - 1, msg[2]) });
@@ -513,7 +516,7 @@ Engine_Elianne : CroneEngine {
         this.addCommand("m1_mix_tri", "f", { |msg| synth_mods[0].set(\mix_tri, msg[1]) });
         this.addCommand("m1_mix_saw", "f", { |msg| synth_mods[0].set(\mix_saw, msg[1]) });
         this.addCommand("m1_mix_pulse", "f", { |msg| synth_mods[0].set(\mix_pulse, msg[1]) });
-        this.addCommand("m1_range", "i", { |msg| synth_mods[0].set(\range, msg[1] - 1) });
+        this.addCommand("m1_range", "i", { |msg| synth_mods[0].set(\range, msg[1]) });
 
         // M2
         this.addCommand("m2_tune", "f", { |msg| synth_mods[1].set(\tune, msg[1]) });
@@ -523,29 +526,30 @@ Engine_Elianne : CroneEngine {
         this.addCommand("m2_mix_tri", "f", { |msg| synth_mods[1].set(\mix_tri, msg[1]) });
         this.addCommand("m2_mix_saw", "f", { |msg| synth_mods[1].set(\mix_saw, msg[1]) });
         this.addCommand("m2_mix_pulse", "f", { |msg| synth_mods[1].set(\mix_pulse, msg[1]) });
-        this.addCommand("m2_range", "i", { |msg| synth_mods[1].set(\range, msg[1] - 1) });
+        this.addCommand("m2_range", "i", { |msg| synth_mods[1].set(\range, msg[1]) });
 
         // M3
         this.addCommand("m3_tune1", "f", { |msg| synth_mods[2].set(\tune1, msg[1]) });
         this.addCommand("m3_pwm1", "f", { |msg| synth_mods[2].set(\pwm1, msg[1]) });
         this.addCommand("m3_morph1", "f", { |msg| synth_mods[2].set(\morph1, msg[1]) });
-        this.addCommand("m3_range1", "i", { |msg| synth_mods[2].set(\range1, msg[1] - 1) });
+        this.addCommand("m3_range1", "i", { |msg| synth_mods[2].set(\range1, msg[1]) });
         this.addCommand("m3_pv1_mode", "i", { |msg| synth_mods[2].set(\pv1_mode, msg[1]) });
         this.addCommand("m3_tune2", "f", { |msg| synth_mods[2].set(\tune2, msg[1]) });
         this.addCommand("m3_pwm2", "f", { |msg| synth_mods[2].set(\pwm2, msg[1]) });
         this.addCommand("m3_morph2", "f", { |msg| synth_mods[2].set(\morph2, msg[1]) });
-        this.addCommand("m3_range2", "i", { |msg| synth_mods[2].set(\range2, msg[1] - 1) });
+        this.addCommand("m3_range2", "i", { |msg| synth_mods[2].set(\range2, msg[1]) });
         this.addCommand("m3_pv2_mode", "i", { |msg| synth_mods[2].set(\pv2_mode, msg[1]) });
 
         // M4
         this.addCommand("m4_slow_rate", "f", { |msg| synth_mods[3].set(\slow_rate, msg[1]) });
         this.addCommand("m4_tilt1", "f", { |msg| synth_mods[3].set(\tilt1, msg[1]) });
         this.addCommand("m4_tilt2", "f", { |msg| synth_mods[3].set(\tilt2, msg[1]) });
-        this.addCommand("m4_type1", "i", { |msg| synth_mods[3].set(\type1, msg[1] - 1) });
-        this.addCommand("m4_type2", "i", { |msg| synth_mods[3].set(\type2, msg[1] - 1) });
+        this.addCommand("m4_type1", "i", { |msg| synth_mods[3].set(\type1, msg[1]) });
+        this.addCommand("m4_type2", "i", { |msg| synth_mods[3].set(\type2, msg[1]) });
         this.addCommand("m4_clk_rate", "f", { |msg| synth_mods[3].set(\clk_rate, msg[1]) });
         this.addCommand("m4_prob_skew", "f", { |msg| synth_mods[3].set(\prob_skew, msg[1]) });
         this.addCommand("m4_glide", "f", { |msg| synth_mods[3].set(\glide, msg[1]) });
+        this.addCommand("m4_clk_thresh", "f", { |msg| synth_mods[3].set(\clk_thresh, msg[1]) });
 
         // M5
         this.addCommand("m5_mod_gain", "f", { |msg| synth_mods[4].set(\mod_gain, msg[1]) });
@@ -555,6 +559,7 @@ Engine_Elianne : CroneEngine {
         this.addCommand("m5_vca_resp", "f", { |msg| synth_mods[4].set(\vca_resp, msg[1]) });
         this.addCommand("m5_xfade", "f", { |msg| synth_mods[4].set(\xfade, msg[1]) });
         this.addCommand("m5_state_mode", "i", { |msg| synth_mods[4].set(\state_mode, msg[1]) });
+        this.addCommand("m5_gate_thresh", "f", { |msg| synth_mods[4].set(\gate_thresh, msg[1]) });
 
         // M6
         this.addCommand("m6_cutoff", "f", { |msg| synth_mods[5].set(\cutoff, msg[1]) });
@@ -565,7 +570,6 @@ Engine_Elianne : CroneEngine {
         this.addCommand("m6_out_lvl", "f", { |msg| synth_mods[5].set(\out_lvl, msg[1]) });
         this.addCommand("m6_jfet", "f", { |msg| synth_mods[5].set(\jfet, msg[1]) });
         this.addCommand("m6_cv2_mode", "i", { |msg| synth_mods[5].set(\cv2_mode, msg[1]) });
-        this.addCommand("m6_range", "i", { |msg| synth_mods[5].set(\range, msg[1] - 1) });
         this.addCommand("m6_ping", "", { synth_mods[5].set(\t_ping, 1) });
 
         // M7
@@ -577,7 +581,6 @@ Engine_Elianne : CroneEngine {
         this.addCommand("m7_out_lvl", "f", { |msg| synth_mods[6].set(\out_lvl, msg[1]) });
         this.addCommand("m7_jfet", "f", { |msg| synth_mods[6].set(\jfet, msg[1]) });
         this.addCommand("m7_cv2_mode", "i", { |msg| synth_mods[6].set(\cv2_mode, msg[1]) });
-        this.addCommand("m7_range", "i", { |msg| synth_mods[6].set(\range, msg[1] - 1) });
         this.addCommand("m7_ping", "", { synth_mods[6].set(\t_ping, 1) });
 
         // M8
