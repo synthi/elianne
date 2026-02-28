@@ -1,13 +1,14 @@
--- lib/screen_ui.lua v0.6
--- CHANGELOG v0.6:
--- 1. FIX FATAL: Reemplazo de params:lookup_param (inexistente) por params:lookup.
--- 2. SEGURIDAD: Añadida protección nil coalescing en la iteración de G.patch.
+-- lib/screen_ui.lua v0.7
+-- CHANGELOG v0.7:
+-- 1. UI: Cables dibujados por encima de los nodos. Respiración añadida a los nodos en pantalla.
+-- 2. UI: Textos descriptivos en menús (nombre real del parámetro).
+-- 3. CONTROL: Resolución científica para encoders (Hz absolutos) y Attenuverters.
+-- 4. FIX: Botones K2/K3 arreglados usando params.lookup.
 
 local ScreenUI = {}
 
 local MenuDef = {
-    [1] = { A = { title = "1004-T (A) MIXER", e1 = "m1_mix_sine", e2 = "m1_mix_tri", e3 = "m1_mix_saw", e4 = "m1_mix_pulse" }, B = { title = "1004-T (A) CORE", e1 = "m1_pwm", e2 = "m1_tune", e3 = "m1_fine", k3 = "m1_range" } },
-    [2] = { A = { title = "1004-T (B) MIXER", e1 = "m2_mix_sine", e2 = "m2_mix_tri", e3 = "m2_mix_saw", e4 = "m2_mix_pulse" }, B = { title = "1004-T (B) CORE", e1 = "m2_pwm", e2 = "m2_tune", e3 = "m2_fine", k3 = "m2_range" } },
+    [1] = { A = { title = "1004-T (A) MIXER", e1 = "m1_mix_sine", e2 = "m1_mix_tri", e3 = "m1_mix_saw", e4 = "m1_mix_pulse" }, B = { title = "1004-T (A) CORE", e1 = "m1_pwm", e2 = "m1_tune", e3 = "m1_fine", k3 = "m1_range" } },[2] = { A = { title = "1004-T (B) MIXER", e1 = "m2_mix_sine", e2 = "m2_mix_tri", e3 = "m2_mix_saw", e4 = "m2_mix_pulse" }, B = { title = "1004-T (B) CORE", e1 = "m2_pwm", e2 = "m2_tune", e3 = "m2_fine", k3 = "m2_range" } },
     [3] = { A = { title = "1023 - OSC 1", e1 = "m3_pwm1", e2 = "m3_tune1", e3 = "m3_morph1", k3 = "m3_range1" }, B = { title = "1023 - OSC 2", e1 = "m3_pwm2", e2 = "m3_tune2", e3 = "m3_morph2", k3 = "m3_range2" } },
     [4] = { A = { title = "1016 NOISE", e1 = "m4_slow_rate", e2 = "m4_tilt1", e3 = "m4_tilt2", k2 = "m4_type1", k3 = "m4_type2" }, B = { title = "1036 S&H", e1 = "m4_clk_rate", e2 = "m4_prob_skew", e3 = "m4_glide" } },
     [5] = { A = { title = "1005 STATE", e1 = "m5_mod_gain", e2 = "m5_unmod_gain", e3 = "m5_drive", k2 = "m5_state" }, B = { title = "1005 VCA", e1 = "m5_vca_base", e2 = "m5_vca_resp", e3 = "m5_xfade", k2 = "m5_state" } },
@@ -20,7 +21,33 @@ local function grid_to_screen(x, y)
     return (x - 1) * 8 + 4, (y - 1) * 8 + 4
 end
 
+local function get_p_name(id)
+    local idx = params.lookup[id]
+    return idx and params.params[idx].name or id
+end
+
 function ScreenUI.draw_idle(G)
+    for x = 1, 16 do
+        for y = 1, 8 do
+            local node = G.grid_map[x][y]
+            local is_menu = (y == 4)
+            if (node and node.type ~= "dummy") or is_menu then
+                local px, py = grid_to_screen(x, y)
+                local is_even = (math.ceil(x / 2) % 2 == 0)
+                local base_bright = is_even and 4 or 2
+                
+                if node and G.node_levels and G.node_levels[node.id] then
+                    local audio_mod = math.floor(util.clamp(G.node_levels[node.id] * 10, 0, 6))
+                    base_bright = util.clamp(base_bright + audio_mod, 0, 14)
+                end
+                
+                screen.level(base_bright)
+                screen.rect(px - 2, py - 2, 4, 4)
+                screen.fill()
+            end
+        end
+    end
+
     screen.aa(1)
     screen.level(10)
     if G.patch then
@@ -44,25 +71,11 @@ function ScreenUI.draw_idle(G)
     end
     screen.aa(0)
     
-    for x = 1, 16 do
-        for y = 1, 8 do
-            local node = G.grid_map[x][y]
-            local is_menu = (y == 4)
-            if (node and node.type ~= "dummy") or is_menu then
-                local px, py = grid_to_screen(x, y)
-                local is_even = (math.ceil(x / 2) % 2 == 0)
-                screen.level(is_even and 4 or 2)
-                screen.rect(px - 2, py - 2, 4, 4)
-                screen.fill()
-            end
-        end
-    end
-    
     screen.level(15)
     screen.move(2, 62)
     screen.text("ELIANNE")
     screen.move(126, 62)
-    screen.text_right("IDLE")
+    screen.text_right("ARP 2500")
 end
 
 function ScreenUI.draw_node_menu(G)
@@ -72,20 +85,11 @@ function ScreenUI.draw_node_menu(G)
     
     screen.level(15)
     screen.move(64, 10)
-    screen.text_center(node.name)
+    screen.text_center("MOD " .. node.module .. ": " .. node.name)
     
     screen.level(4)
     screen.move(64, 20)
     screen.text_center(node.type == "in" and "INPUT ATTENUVERTER" or "OUTPUT LEVEL")
-    
-    screen.level(15)
-    screen.rect(14, 30, 100, 10)
-    screen.stroke()
-    
-    screen.level(4)
-    screen.move(64, 30)
-    screen.line(64, 40)
-    screen.stroke()
     
     screen.level(15)
     local val_px = (node.level or 0) * 50
@@ -97,11 +101,11 @@ function ScreenUI.draw_node_menu(G)
     screen.fill()
     
     screen.move(10, 55)
-    screen.text("E2: " .. string.format("%.2f", node.level or 0))
+    screen.text("E2 Level: " .. string.format("%.2f", node.level or 0))
     
     if node.module == 8 and node.type == "in" then
         screen.move(118, 55)
-        screen.text_right("E3 PAN: " .. string.format("%.2f", node.pan or 0))
+        screen.text_right("E3 Pan: " .. string.format("%.2f", node.pan or 0))
     end
 end
 
@@ -117,16 +121,10 @@ function ScreenUI.draw_module_menu(G)
     screen.stroke()
 
     screen.level(4)
-    if def.e1 then screen.move(2, 30); screen.text("E1"); screen.level(15); screen.move(20, 30); screen.text(params:string(def.e1)) end
-    screen.level(4)
-    if def.e2 then screen.move(2, 45); screen.text("E2"); screen.level(15); screen.move(20, 45); screen.text(params:string(def.e2)) end
-    screen.level(4)
-    if def.e3 then screen.move(2, 60); screen.text("E3"); screen.level(15); screen.move(20, 60); screen.text(params:string(def.e3)) end
-
-    if def.e4 then 
-        screen.level(4); screen.move(70, 60); screen.text("E4"); 
-        screen.level(15); screen.move(88, 60); screen.text(params:string(def.e4)) 
-    end
+    if def.e1 then screen.move(2, 30); screen.text("E1 " .. get_p_name(def.e1) .. ": " .. params:string(def.e1)) end
+    if def.e2 then screen.move(2, 45); screen.text("E2 " .. get_p_name(def.e2) .. ": " .. params:string(def.e2)) end
+    if def.e3 then screen.move(2, 60); screen.text("E3 " .. get_p_name(def.e3) .. ": " .. params:string(def.e3)) end
+    if def.e4 then screen.move(70, 60); screen.text("E4 " .. get_p_name(def.e4) .. ": " .. params:string(def.e4)) end
 
     screen.level(4)
     if def.k2 then screen.move(126, 30); screen.text_right("K2: " .. params:string(def.k2)) end
@@ -161,10 +159,12 @@ function ScreenUI.enc(G, n, d)
         
         local Matrix = include('lib/matrix') 
         if n == 2 then
-            node.level = util.clamp((node.level or 0) + (d * 0.05 * accel), -1.0, 1.0)
+            local step = (accel < 1) and 0.005 or 0.05
+            node.level = util.clamp((node.level or 0) + (d * step), -1.0, 1.0)
             Matrix.update_node_params(node)
         elseif n == 3 and node.module == 8 and node.type == "in" then
-            node.pan = util.clamp((node.pan or 0) + (d * 0.05 * accel), -1.0, 1.0)
+            local step = (accel < 1) and 0.005 or 0.05
+            node.pan = util.clamp((node.pan or 0) + (d * step), -1.0, 1.0)
             Matrix.update_node_params(node)
         end
     elseif G.focus.state == "menu" then
@@ -180,9 +180,17 @@ function ScreenUI.enc(G, n, d)
         
         if target_param then
             if string.find(target_param, "tune") or string.find(target_param, "cutoff") then
-                params:delta(target_param, d * accel)
+                local current = params:get(target_param)
+                local step = 0.1
+                if accel > 1 then step = 10.0 end
+                if accel < 1 then step = 0.01 end
+                params:set(target_param, util.clamp(current + (d * step), 0.01, 20000.0))
+            elseif string.find(target_param, "fine") then
+                local current = params:get(target_param)
+                local step = (accel < 1) and 0.001 or 0.01
+                params:set(target_param, util.clamp(current + (d * step), -5.0, 5.0))
             else
-                params:delta(target_param, d)
+                params:delta(target_param, d * accel)
             end
         end
     end
@@ -199,12 +207,15 @@ function ScreenUI.key(G, n, z)
         elseif n == 3 then target_param = def.k3 end
         
         if target_param then
-            local p = params:lookup(target_param)
-            if p and p.options then
-                local current = params:get(target_param)
-                local next_val = current + 1
-                if next_val > #p.options then next_val = 1 end
-                params:set(target_param, next_val)
+            local p_idx = params.lookup[target_param]
+            if p_idx then
+                local p = params.params[p_idx]
+                if p and p.options then
+                    local current = params:get(target_param)
+                    local next_val = current + 1
+                    if next_val > #p.options then next_val = 1 end
+                    params:set(target_param, next_val)
+                end
             end
         end
     end
