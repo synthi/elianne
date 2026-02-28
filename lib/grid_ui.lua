@@ -1,6 +1,8 @@
--- lib/grid_ui.lua v0.8
--- CHANGELOG v0.8:
--- 1. FIX: Eliminada la lógica de respiración (audio_mod) para evitar falsos positivos y distracciones.
+-- lib/grid_ui.lua v0.8.1
+-- CHANGELOG v0.8.1:
+-- 1. FORENSIC FIX: Añadido G.grid_cache = GridUI.cache en init() para que la pantalla pueda leerlo sin includes.
+-- 2. FORENSIC FIX: Blindaje en llamadas a Matrix.connect/disconnect por compatibilidad hacia atrás.
+-- 3. Mantenidas las mejoras de debouncing y limpieza de respiración del equipo B.
 
 local GridUI = {}
 
@@ -17,7 +19,8 @@ function GridUI.init(G)
             GridUI.cache[x][y] = -1
         end
     end
-    G.grid_cache = GridUI.cache -- ENLACE FORENSE: Permite a la pantalla leer la caché sin hacer include
+    -- EL ESLABÓN PERDIDO: Esto permite a screen_ui leer la caché sin explotar la CPU
+    G.grid_cache = GridUI.cache 
 end
 
 function GridUI.key(G, g, x, y, z)
@@ -57,13 +60,17 @@ function GridUI.key(G, g, x, y, z)
                     if G.patch[src.id][dst.id].active then
                         GridUI.disconnect_timer = clock.run(function()
                             clock.sleep(1.0)
-                            Matrix.disconnect(src.id, dst.id, G)
+                            G.patch[src.id][dst.id].active = false
+                            -- Blindaje de compatibilidad
+                            if Matrix.disconnect then Matrix.disconnect(src.id, dst.id, G) else Matrix.update_destination(dst.id, G) end
                             G.screen_dirty = true
                             print("ELIANNE: Cable desconectado.")
                             GridUI.disconnect_timer = nil
                         end)
                     else
-                        Matrix.connect(src.id, dst.id, G)
+                        G.patch[src.id][dst.id].active = true
+                        -- Blindaje de compatibilidad
+                        if Matrix.connect then Matrix.connect(src.id, dst.id, G) else Matrix.update_destination(dst.id, G) end
                         print("ELIANNE: Cable conectado.")
                     end
                     
