@@ -1,8 +1,8 @@
--- lib/screen_ui.lua v0.94
--- CHANGELOG v0.94:
--- 1. FORENSIC FIX: Eliminado include('lib/grid_ui') dentro de draw_idle (Bomba de CPU/SD Card).
--- 2. ARCHITECTURE: La pantalla ahora lee G.grid_cache directamente, restaurando la visibilidad de los cuadrados.
--- 3. SAFETY: Protecciones pcall mantenidas para parámetros dinámicos.
+-- lib/screen_ui.lua v0.95
+-- CHANGELOG v0.95:
+-- 1. FORENSIC FIX: Eliminado include('lib/grid_ui') de draw_idle. Lectura segura desde G.grid_cache.
+-- 2. INTEGRACIÓN: Mantenida la estructura MenuDef avanzada del equipo B.
+-- 3. SAFETY: Protecciones pcall y Safe 2D Indexing aplicadas rigurosamente.
 
 local ScreenUI = {}
 
@@ -32,7 +32,7 @@ local function clean_str(str)
 end
 
 function ScreenUI.draw_idle(G)
-    -- 1. Grid Virtual (Lectura segura desde el enlace global, sin includes destructivos)
+    -- 1. Grid Virtual (Lectura segura desde el enlace global)
     for x = 1, 16 do
         for y = 1, 8 do
             if y == 1 or y == 2 or y == 6 or y == 7 then
@@ -239,10 +239,10 @@ function ScreenUI.enc(G, n, d)
         local Matrix = include('lib/matrix') 
         if n == 3 then
             node.level = util.clamp((node.level or 0) + (d * 0.01), -1.0, 1.0)
-            Matrix.update_node_params(node)
+            if Matrix.update_node_params then Matrix.update_node_params(node) end
         elseif n == 2 and node.module == 8 and node.type == "in" then
             node.pan = util.clamp((node.pan or 0) + (d * 0.01), -1.0, 1.0)
-            Matrix.update_node_params(node)
+            if Matrix.update_node_params then Matrix.update_node_params(node) end
         end
     elseif G.focus.state == "menu" then
         if not G.focus.module_id or not G.focus.page then return end
