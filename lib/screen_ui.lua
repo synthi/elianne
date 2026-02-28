@@ -1,9 +1,8 @@
--- lib/screen_ui.lua v0.92
--- CHANGELOG v0.92:
--- 1. UI: Grid Virtual lee directamente la caché física (GridUI.cache) para sincronización 1:1.
--- 2. UI: Invertidos E2 y E3 visualmente en menús de nodo.
--- 3. UI: Eliminados espacios en blanco en el formateo de parámetros.
--- 4. UI: Añadido PING a K3 en 1047. Eliminado RNG en osciladores.
+-- lib/screen_ui.lua v0.93
+-- CHANGELOG v0.93:
+-- 1. FORENSIC FIX: Implementado "Pre-Init Abort" en ScreenUI.draw para evitar colapsos por asincronía de Norns.
+-- 2. FORENSIC FIX: Safe 2D Indexing en GridUI.cache y G.grid_map para evitar "attempt to index a nil value".
+-- 3. FORENSIC FIX: Fallbacks seguros en params:get() durante el renderizado temprano.
 
 local ScreenUI = {}
 
@@ -12,8 +11,7 @@ local MenuDef = {
     [2] = { A = { title = "1004-P (B) MIXER", e1 = {id="m2_mix_sine", name="SINE"}, e2 = {id="m2_mix_tri", name="TRI"}, e3 = {id="m2_mix_saw", name="SAW"}, e4 = {id="m2_mix_pulse", name="PULSE"} }, B = { title = "1004-P (B) CORE", e1 = {id="m2_pwm", name="PWM"}, e2 = {id="m2_tune", name="TUNE"}, e3 = {id="m2_fine", name="FINE"}, k3 = {id="m2_range", name=""} } },
     [3] = { A = { title = "1023 - OSC 1", e1 = {id="m3_pwm1", name="PWM"}, e2 = {id="m3_tune1", name="TUNE"}, e3 = {id="m3_morph1", name="MORPH"}, k3 = {id="m3_range1", name=""} }, B = { title = "1023 - OSC 2", e1 = {id="m3_pwm2", name="PWM"}, e2 = {id="m3_tune2", name="TUNE"}, e3 = {id="m3_morph2", name="MORPH"}, k3 = {id="m3_range2", name=""} } },
     [4] = { A = { title = "1016 NOISE", e1 = {id="m4_slow_rate", name="RATE"}, e2 = {id="m4_tilt1", name="TILT 1"}, e3 = {id="m4_tilt2", name="TILT 2"}, k2 = {id="m4_type1", name="N1"}, k3 = {id="m4_type2", name="N2"} }, B = { title = "1036 S&H", e1 = {id="m4_clk_rate", name="CLOCK"}, e2 = {id="m4_prob_skew", name="SKEW"}, e3 = {id="m4_glide", name="GLIDE"} } },
-    [5] = { A = { title = "1005 STATE", e1 = {id="m5_drive", name="DRIVE"}, e2 = {id="m5_mod_gain", name="MOD"}, e3 = {id="m5_unmod_gain", name="UNMOD"}, k2 = {id="m5_state", name="ST"} }, B = { title = "1005 VCA", e1 = {id="m5_xfade", name="XFADE"}, e2 = {id="m5_vca_base", name="BASE"}, e3 = {id="m5_vca_resp", name="RESP"}, k2 = {id="m5_state", name="ST"} } },
-    [6] = { A = { title = "1047 (A) FILTER", e1 = {id="m6_q", name="RES"}, e2 = {id="m6_cutoff", name="FREQ"}, e3 = {id="m6_fine", name="FINE"}, e4 = {id="m6_jfet", name="DRIVE"} }, B = { title = "1047 (A) NOTCH", e1 = {id="m6_p_shift", name="P.SHIFT"}, e2 = {id="m6_notch", name="NOTCH FRQ"}, e3 = {id="m6_final_q", name="KEY DCY"}, k3 = {id="m6_ping", name="PING"} } },[7] = { A = { title = "1047 (B) FILTER", e1 = {id="m7_q", name="RES"}, e2 = {id="m7_cutoff", name="FREQ"}, e3 = {id="m7_fine", name="FINE"}, e4 = {id="m7_jfet", name="DRIVE"} }, B = { title = "1047 (B) NOTCH", e1 = {id="m7_p_shift", name="P.SHIFT"}, e2 = {id="m7_notch", name="NOTCH FRQ"}, e3 = {id="m7_final_q", name="KEY DCY"}, k3 = {id="m7_ping", name="PING"} } },
+    [5] = { A = { title = "1005 STATE", e1 = {id="m5_drive", name="DRIVE"}, e2 = {id="m5_mod_gain", name="MOD"}, e3 = {id="m5_unmod_gain", name="UNMOD"}, k2 = {id="m5_state", name="ST"} }, B = { title = "1005 VCA", e1 = {id="m5_xfade", name="XFADE"}, e2 = {id="m5_vca_base", name="BASE"}, e3 = {id="m5_vca_resp", name="RESP"}, k2 = {id="m5_state", name="ST"} } },[6] = { A = { title = "1047 (A) FILTER", e1 = {id="m6_q", name="RES"}, e2 = {id="m6_cutoff", name="FREQ"}, e3 = {id="m6_fine", name="FINE"}, e4 = {id="m6_jfet", name="DRIVE"} }, B = { title = "1047 (A) NOTCH", e1 = {id="m6_p_shift", name="P.SHIFT"}, e2 = {id="m6_notch", name="NOTCH FRQ"}, e3 = {id="m6_final_q", name="KEY DCY"}, k3 = {id="m6_ping", name="PING"} } },[7] = { A = { title = "1047 (B) FILTER", e1 = {id="m7_q", name="RES"}, e2 = {id="m7_cutoff", name="FREQ"}, e3 = {id="m7_fine", name="FINE"}, e4 = {id="m7_jfet", name="DRIVE"} }, B = { title = "1047 (B) NOTCH", e1 = {id="m7_p_shift", name="P.SHIFT"}, e2 = {id="m7_notch", name="NOTCH FRQ"}, e3 = {id="m7_final_q", name="KEY DCY"}, k3 = {id="m7_ping", name="PING"} } },
     [8] = { A = { title = "NEXUS MASTER", e1 = {id="m8_res", name="RES"}, e2 = {id="m8_cut_l", name="VCF L"}, e3 = {id="m8_cut_r", name="VCF R"}, k2 = {id="m8_filt_byp", name="FILT"}, k3 = {id="m8_adc_mon", name="ADC"} }, B = { title = "NEXUS TAPE", e1 = {id="m8_tape_mix", name="MIX"}, e2 = {id="m8_tape_time", name="TIME"}, e3 = {id="m8_tape_fb", name="FDBK"}, e4 = {id="m8_wow", name="W&F"}, k2 = {id="m8_tape_sat", name="SAT"}, k3 = {id="m8_tape_mute", name="MUTE"} } }
 }
 
@@ -22,22 +20,25 @@ local function grid_to_screen(x, y)
 end
 
 local function fmt_hz(v) 
+    if not v then return "0.0Hz" end
     return v >= 1000 and string.format("%.1fkHz", v/1000) or string.format("%.1fHz", v) 
 end
 
 local function clean_str(str)
+    if not str then return "" end
     return string.gsub(str, " ", "")
 end
 
 function ScreenUI.draw_idle(G)
     local GridUI = include('lib/grid_ui')
     
-    -- 1. Grid Virtual (Sincronización 1:1 con caché física)
+    -- 1. Grid Virtual (Safe 2D Indexing)
     for x = 1, 16 do
         for y = 1, 8 do
             if y == 1 or y == 2 or y == 6 or y == 7 then
                 local px, py = grid_to_screen(x, y)
-                local b = GridUI.cache[x][y] or 0
+                -- PROTECCIÓN: Verifica que GridUI.cache y GridUI.cache[x] existan
+                local b = (GridUI.cache and GridUI.cache[x] and GridUI.cache[x][y]) or 0
                 if b == -1 then b = 0 end
                 
                 screen.level(b)
@@ -55,10 +56,10 @@ function ScreenUI.draw_idle(G)
     screen.move(64, 32)
     screen.text_center("ELIANNE 2500")
 
-    -- 3. Cables por encima
+    -- 3. Cables por encima (Safe Indexing)
     screen.aa(1)
     screen.level(10)
-    if G.patch then
+    if G.patch and G.nodes then
         for src_id, dests in pairs(G.patch) do
             for dst_id, data in pairs(dests) do
                 if data.active then
@@ -79,10 +80,17 @@ function ScreenUI.draw_idle(G)
     end
     screen.aa(0)
     
-    -- 4. Telemetría Dinámica Limpia
-    local vol = params:get("m8_master_vol") or 0.0
-    local vcf1 = params:get("m8_cut_l") or 20000
-    local vcf2 = params:get("m8_cut_r") or 20000
+    -- 4. Telemetría Dinámica Limpia (Safe Params)
+    local vol = 0.0
+    local vcf1 = 20000
+    local vcf2 = 20000
+    
+    -- Usamos pcall por si params:get falla durante el boot temprano
+    pcall(function()
+        vol = params:get("m8_master_vol") or 0.0
+        vcf1 = params:get("m8_cut_l") or 20000
+        vcf2 = params:get("m8_cut_r") or 20000
+    end)
     
     screen.level(15)
     screen.move(2, 62); screen.text(string.format("%.1fdB", vol))
@@ -92,7 +100,8 @@ end
 
 function ScreenUI.draw_node_menu(G)
     if not G.focus.node_x or not G.focus.node_y then return end
-    local node = G.grid_map[G.focus.node_x][G.focus.node_y]
+    -- PROTECCIÓN: Safe 2D Indexing
+    local node = G.grid_map[G.focus.node_x] and G.grid_map[G.focus.node_x][G.focus.node_y]
     if not node or node.type == "dummy" then return end
     
     local mod_name = G.module_names and G.module_names[node.module] or ("MOD " .. node.module)
@@ -114,7 +123,6 @@ function ScreenUI.draw_node_menu(G)
     end
     screen.fill()
     
-    -- E3 (Level) a la derecha
     screen.level(4)
     screen.move(126, 55)
     local lvl_str = string.format("%.2f", node.level or 0)
@@ -124,7 +132,6 @@ function ScreenUI.draw_node_menu(G)
     screen.move(126 - w_lvl - 2, 55)
     screen.text_right("E3 Level: ")
     
-    -- E2 (Pan) a la izquierda
     if node.module == 8 and node.type == "in" then
         screen.level(4)
         screen.move(10, 55)
@@ -139,10 +146,19 @@ local function draw_param(def_e, x, y, label)
     screen.level(4); screen.move(x, y); screen.text(label .. " " .. def_e.name .. ": ")
     screen.level(15)
     
-    if string.find(def_e.id, "cut") or string.find(def_e.id, "tune") then
-        screen.text(fmt_hz(params:get(def_e.id)))
+    local val = nil
+    pcall(function() val = params:get(def_e.id) end)
+    
+    if val then
+        if string.find(def_e.id, "cut") or string.find(def_e.id, "tune") then
+            screen.text(fmt_hz(val))
+        else
+            local str_val = ""
+            pcall(function() str_val = params:string(def_e.id) end)
+            screen.text(clean_str(str_val))
+        end
     else
-        screen.text(clean_str(params:string(def_e.id)))
+        screen.text("---")
     end
 end
 
@@ -164,18 +180,24 @@ function ScreenUI.draw_module_menu(G)
     if def.k2 then 
         local k2_id = type(def.k2) == "table" and def.k2.id or def.k2
         local k2_name = type(def.k2) == "table" and def.k2.name or "K2"
-        local k2_val = clean_str(params:string(k2_id))
+        local k2_val = ""
+        pcall(function() k2_val = clean_str(params:string(k2_id)) end)
         screen.move(126, 30); screen.text_right("K2 " .. k2_name .. (k2_name ~= "" and ": " or "") .. k2_val) 
     end
     if def.k3 then 
         local k3_id = type(def.k3) == "table" and def.k3.id or def.k3
         local k3_name = type(def.k3) == "table" and def.k3.name or "K3"
-        local k3_val = clean_str(params:string(k3_id))
+        local k3_val = ""
+        pcall(function() k3_val = clean_str(params:string(k3_id)) end)
         screen.move(126, 45); screen.text_right("K3 " .. k3_name .. (k3_name ~= "" and ": " or "") .. k3_val) 
     end
 end
 
 function ScreenUI.draw(G)
+    -- PROTECCIÓN DE CICLO DE VIDA (Pre-Init Abort)
+    -- Si G.grid_map no existe, init() no ha terminado. Abortamos el dibujo.
+    if not G or not G.grid_map or not G.nodes then return end
+
     if G.focus.state == "idle" or G.focus.state == "patching" then
         ScreenUI.draw_idle(G)
     elseif G.focus.state == "in" or G.focus.state == "out" then
@@ -212,7 +234,7 @@ function ScreenUI.enc(G, n, d)
         end
     elseif G.focus.state == "in" or G.focus.state == "out" then
         if not G.focus.node_x or not G.focus.node_y then return end
-        local node = G.grid_map[G.focus.node_x][G.focus.node_y]
+        local node = G.grid_map[G.focus.node_x] and G.grid_map[G.focus.node_x][G.focus.node_y]
         if not node or node.type == "dummy" then return end
         
         local Matrix = include('lib/matrix') 
