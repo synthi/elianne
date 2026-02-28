@@ -1,7 +1,6 @@
--- lib/grid_ui.lua v0.7
--- CHANGELOG v0.7:
--- 1. DEBOUNCE: Implementado sistema anti-rebote de 50ms para evitar pulsaciones fantasma.
--- 2. UI: Resaltado visual de conexiones activas al mantener pulsado un nodo.
+-- lib/grid_ui.lua v0.8
+-- CHANGELOG v0.8:
+-- 1. FIX: Eliminada la lógica de respiración (audio_mod) para evitar falsos positivos y distracciones.
 
 local GridUI = {}
 
@@ -111,14 +110,7 @@ function GridUI.redraw(G, g)
             local is_menu = (y == 4)
             
             if (node and node.type ~= "dummy") or is_menu then
-                local base_bright = is_even_module and 4 or 2
-                local audio_mod = 0
-                
-                if node and G.node_levels and G.node_levels[node.id] then
-                    audio_mod = math.floor(util.clamp(G.node_levels[node.id] * 10, 0, 6))
-                end
-                
-                b = util.clamp(base_bright + audio_mod, 0, 14)
+                b = is_even_module and 4 or 2
                 
                 for _, h in ipairs(GridUI.held_nodes) do
                     if h.x == x and h.y == y then
