@@ -1,7 +1,7 @@
-// lib/Engine_Elianne.sc v0.6
-// CHANGELOG v0.6:
+// lib/Engine_Elianne.sc v0.7
+// CHANGELOG v0.7:
 // 1. FIX FATAL: Eliminado patch_row (C-Stack Overflow).
-// 2. OPTIMIZACIÓN: Implementado patch_set. SC mantiene el estado de la matriz internamente.
+// 2. OPTIMIZACIÓN EXTREMA: Matriz dividida en 64 Synths paralelos para eliminar el tiempo de compilación de 1.5 minutos.
 // 3. INTEGRIDAD: Archivo generado al 100% sin marcadores de posición.
 
 Engine_Elianne : CroneEngine {
@@ -11,7 +11,8 @@ Engine_Elianne : CroneEngine {
     var <bus_pans;
     var <bus_physics;
     
-    var <synth_matrix;
+    var <synth_matrix_amps;
+    var <synth_matrix_rows;
     var <synth_mods;
     var matrix_state;
     
@@ -30,6 +31,7 @@ Engine_Elianne : CroneEngine {
         64.do { |i| bus_levels.setAt(i, 1.0) };
         
         synth_mods = Array.newClear(8);
+        synth_matrix_rows = Array.newClear(64);
         
         // Inicializar la memoria de la matriz en ceros
         matrix_state = Array.fill(64, { Array.fill(64, 0.0) });
@@ -37,21 +39,22 @@ Engine_Elianne : CroneEngine {
         context.server.sync;
 
         // =====================================================================
-        // SYNTH 0: MATRIZ UNIVERSAL 64x64
+        // SYNTH 0A: MEDIDOR DE AMPLITUD DE LA MATRIZ
         // =====================================================================
-        SynthDef(\Elianne_Matrix, {
-            var tx, amps;
-            tx = InFeedback.ar(bus_nodes_tx.index, 64);
-            amps = Amplitude.kr(tx, 0.05, 0.1);
-            
+        SynthDef(\Elianne_MatrixAmps, {
+            var tx = InFeedback.ar(bus_nodes_tx.index, 64);
+            var amps = Amplitude.kr(tx, 0.05, 0.1);
             SendReply.kr(Impulse.kr(15), '/elianne_levels', amps);
-            
-            64.do { |dst_idx|
-                var row_gains, sum;
-                row_gains = NamedControl.kr(("row_" ++ (dst_idx + 1)).asSymbol, 0 ! 64);
-                sum = (tx * row_gains).sum;
-                Out.ar(bus_nodes_rx.index + dst_idx, sum);
-            };
+        }).add;
+
+        // =====================================================================
+        // SYNTH 0B: FILA INDIVIDUAL DE LA MATRIZ (Evita el cuello de botella de compilación)
+        // =====================================================================
+        SynthDef(\Elianne_MatrixRow, { arg out_bus;
+            var tx = InFeedback.ar(bus_nodes_tx.index, 64);
+            var gains = NamedControl.kr(\gains, 0 ! 64);
+            var sum = (tx * gains).sum;
+            Out.ar(out_bus, sum);
         }).add;
 
         // =====================================================================
@@ -238,7 +241,7 @@ Engine_Elianne : CroneEngine {
             gate_trig = Schmidt.ar(gate_sig, 0.5, 0.6);
             state_flip = ToggleFF.ar(gate_trig);
             
-            current_state = Select.ar(K2A.ar(state_mode), [state_flip, DC.ar(1), DC.ar(0)]);
+            current_state = Select.ar(K2A.ar(state_mode),[state_flip, DC.ar(1), DC.ar(0)]);
             state_smooth = Lag.ar(current_state, xfade);
             
             core_sig = XFade2.ar(car * unmod_gain, rm_sig * mod_gain, state_smooth * 2 - 1);
@@ -359,7 +362,10 @@ Engine_Elianne : CroneEngine {
         // INSTANCIACIÓN DE NODOS
         // =====================================================================
         
-        synth_matrix = Synth.new(\Elianne_Matrix,[], context.xg, \addToHead);
+        synth_matrix_amps = Synth.new(\Elianne_MatrixAmps,[], context.xg, \addToHead);
+        64.do { |i|
+            synth_matrix_rows[i] = Synth.new(\Elianne_MatrixRow,[\out_bus, bus_nodes_rx.index + i], context.xg, \addToHead);
+        };
         
         synth_mods[0] = Synth.new(\Elianne_1004T,[
             \in_fm1, bus_nodes_rx.index+0, \in_fm2, bus_nodes_rx.index+1, \in_pwm, bus_nodes_rx.index+2, \in_voct, bus_nodes_rx.index+3,
@@ -436,7 +442,7 @@ Engine_Elianne : CroneEngine {
             var val = msg[3];
             
             matrix_state[dst][src] = val;
-            synth_matrix.set(("row_" ++ (dst + 1)).asSymbol, matrix_state[dst]);
+            synth_matrix_rows[dst].set(\gains, matrix_state[dst]);
         });
 
         this.addCommand("set_in_level", "if", { |msg| bus_levels.setAt(msg[1] - 1, msg[2]) });
@@ -539,7 +545,8 @@ Engine_Elianne : CroneEngine {
     }
 
     free {
-        synth_matrix.free;
+        synth_matrix_amps.free;
+        synth_matrix_rows.do({ |s| if(s.notNil, { s.free }) });
         synth_mods.do({ |s| if(s.notNil, { s.free }) });
         bus_nodes_tx.free;
         bus_nodes_rx.free;
