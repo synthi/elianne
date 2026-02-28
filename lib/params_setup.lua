@@ -1,4 +1,4 @@
--- lib/params_setup.lua v0.24
+-- lib/params_setup.lua v0.25
 -- CHANGELOG v0.24:
 -- 1. FIX FATAL: Añadidos parámetros faltantes (m6_jfet, m7_jfet, m8_drive, etc.) que causaban crash.
 -- 2. ORGANIZACIÓN: Eliminada carpeta State Toggles, parámetros movidos a sus módulos correspondientes.
@@ -110,7 +110,7 @@ function Params.init(G)
     -- ==========================================
     -- MÓDULO 8: NEXUS
     -- ==========================================
-    params:add_group("MOD 8: NEXUS", 13)
+    params:add_group("MOD 8: NEXUS", 14)
     params:add{type = "control", id = "m8_cut_l", name = "Master Cutoff L", controlspec = controlspec.new(20.0, 20000.0, 'exp', 0.01, 20000.0, "Hz"), action = function(x) engine.m8_cut_l(x) end}
     params:add{type = "control", id = "m8_cut_r", name = "Master Cutoff R", controlspec = controlspec.new(20.0, 20000.0, 'exp', 0.01, 20000.0, "Hz"), action = function(x) engine.m8_cut_r(x) end}
     params:add{type = "control", id = "m8_res", name = "Master Resonance", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.0), action = function(x) engine.m8_res(x) end}
