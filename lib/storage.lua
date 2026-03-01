@@ -1,7 +1,7 @@
--- lib/storage.lua v0.204
--- CHANGELOG v0.204:
--- 1. OPTIMIZACIÓN: Array Batching (patch_row_set) en carga de PSETs y Snapshots instantáneos.
--- 2. FIX FATAL: Destrucción del puntero fantasma de la corrutina (Storage.morph_coroutine = nil).
+-- lib/storage.lua v0.205
+-- CHANGELOG v0.205:
+-- 1. FIX FATAL: Destrucción segura de la corrutina (Storage.morph_coroutine = nil) al cancelar.
+-- 2. FIX: Implementado 'current_gain' en G.patch para evitar saltos de audio al interrumpir un Morph.
 
 local Storage = {}
 
@@ -53,6 +53,7 @@ function Storage.load(G, pset_number)
                         
                         for src_id = 1, 64 do
                             local is_active = G.patch[src_id] and G.patch[src_id][dst_id] and G.patch[src_id][dst_id].active
+                            G.patch[src_id][dst_id].current_gain = is_active and 1.0 or 0.0
                             row_vals[src_id] = is_active and 1.0 or 0.0
                             if is_active then has_active = true end
                         end
@@ -60,7 +61,7 @@ function Storage.load(G, pset_number)
                         engine.patch_row_set(dst_id, table.concat(row_vals, ","))
                         if has_active then engine.resume_matrix_row(dst_id - 1) else engine.pause_matrix_row(dst_id - 1) end
                         
-                        clock.sleep(0.002) -- Staggering seguro para evitar picos de CPU
+                        clock.sleep(0.002)
                     end
                     print("ELIANNE: Pset " .. pset_number .. " cargado (Array Batching).")
                     G.screen_dirty = true
@@ -102,13 +103,17 @@ function Storage.load_snapshot(G, snap_id)
     local target = G.snapshots[snap_id]
     if not target or not target.has_data then return end
     
-    if Storage.morph_coroutine then clock.cancel(Storage.morph_coroutine) end
+    -- FIX FATAL: Destrucción segura del puntero al interrumpir
+    if Storage.morph_coroutine then 
+        clock.cancel(Storage.morph_coroutine) 
+        Storage.morph_coroutine = nil
+    end
     
     local morph_time = params:get("morph_time")
     G.active_snap = snap_id
     
     if morph_time <= 0.05 then
-        -- CARGA INSTANTÁNEA (Array Batching)
+        -- CARGA INSTANTÁNEA
         for p_id, val in pairs(target.params) do 
             params:set(p_id, val) 
             if string.find(p_id, "node_lvl_") then
@@ -126,26 +131,37 @@ function Storage.load_snapshot(G, snap_id)
             for src_id = 1, 64 do
                 local is_active = target.patch[src_id][dst_id].active
                 G.patch[src_id][dst_id].active = is_active
+                G.patch[src_id][dst_id].current_gain = is_active and 1.0 or 0.0
                 row_vals[src_id] = is_active and 1.0 or 0.0
                 if is_active then has_active = true end
             end
             engine.patch_row_set(dst_id, table.concat(row_vals, ","))
             if has_active then engine.resume_matrix_row(dst_id - 1) else engine.pause_matrix_row(dst_id - 1) end
         end
-        print("ELIANNE: Snapshot " .. snap_id .. " cargado instantáneamente (Array Batching).")
+        print("ELIANNE: Snapshot " .. snap_id .. " cargado instantáneamente.")
         G.screen_dirty = true
     else
-        -- MOTOR DE MORPHING (Individual patch_set)
+        -- MOTOR DE MORPHING (Con State Tracking)
         local start_params = {}
         for p_id, _ in pairs(target.params) do start_params[p_id] = params:get(p_id) end
         
-        local start_patch = copy_table(G.patch)
+        local start_patch = {}
+        for src_id = 1, 64 do
+            start_patch[src_id] = {}
+            for dst_id = 1, 64 do
+                -- Si se interrumpió un morph, usamos el volumen exacto en el que se quedó
+                local current = G.patch[src_id][dst_id].current_gain
+                if not current then current = G.patch[src_id][dst_id].active and 1.0 or 0.0 end
+                start_patch[src_id][dst_id] = current
+            end
+        end
+        
         local start_time = util.time()
         
         for dst_id = 1, 64 do
             local needs_row = false
             for src_id = 1, 64 do
-                if start_patch[src_id][dst_id].active or target.patch[src_id][dst_id].active then needs_row = true end
+                if start_patch[src_id][dst_id] > 0 or target.patch[src_id][dst_id].active then needs_row = true end
             end
             if needs_row then engine.resume_matrix_row(dst_id - 1) end
         end
@@ -173,6 +189,7 @@ function Storage.load_snapshot(G, snap_id)
                         for src_id = 1, 64 do
                             local is_active = target.patch[src_id][dst_id].active
                             G.patch[src_id][dst_id].active = is_active
+                            G.patch[src_id][dst_id].current_gain = is_active and 1.0 or 0.0
                             engine.patch_set(dst_id, src_id, is_active and 1.0 or 0.0)
                             if is_active then has_active = true end
                         end
@@ -180,8 +197,6 @@ function Storage.load_snapshot(G, snap_id)
                     end
                     G.screen_dirty = true
                     print("ELIANNE: Morph completado.")
-                    
-                    -- FIX FATAL: Destrucción del puntero fantasma
                     Storage.morph_coroutine = nil
                     break
                 end
@@ -214,16 +229,16 @@ function Storage.load_snapshot(G, snap_id)
                     end
                 end
                 
-                -- CROSSFADE DE MATRIZ
+                -- CROSSFADE DE MATRIZ (Interpolación Continua sin saltos)
                 for dst_id = 1, 64 do
                     for src_id = 1, 64 do
-                        local start_active = start_patch[src_id][dst_id].active
-                        local end_active = target.patch[src_id][dst_id].active
+                        local start_val = start_patch[src_id][dst_id]
+                        local end_val = target.patch[src_id][dst_id].active and 1.0 or 0.0
                         
-                        if start_active and not end_active then
-                            engine.patch_set(dst_id, src_id, 1.0 - progress)
-                        elseif not start_active and end_active then
-                            engine.patch_set(dst_id, src_id, progress)
+                        if start_val ~= end_val then
+                            local current_val = start_val + ((end_val - start_val) * progress)
+                            G.patch[src_id][dst_id].current_gain = current_val
+                            engine.patch_set(dst_id, src_id, current_val)
                         end
                     end
                 end
