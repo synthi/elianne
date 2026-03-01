@@ -98,7 +98,6 @@ function Storage.load(G, pset_number)
         print("ELIANNE: No se encontró archivo de estado para este PSET.")
     end
 end
-```
 
 #### 3. Prevención de Carrera en `lib/matrix.lua`
 Abre `lib/matrix.lua`. Busca la función `Matrix.init(G)` y **sustitúyela completamente** por esta:
