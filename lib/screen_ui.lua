@@ -1,4 +1,4 @@
--- lib/screen_ui.lua v0.100
+-- lib/screen_ui.lua v0.101
 -- CHANGELOG v0.100:
 -- 1. UI: Reordenación de columna derecha (E4 arriba, K2 centro, K3 abajo).
 -- 2. UI: fmt_hz muestra siempre Hz absolutos.
@@ -90,17 +90,27 @@ function ScreenUI.draw_node_menu(G)
     elseif node.id == 42 or node.id == 50 then
         local p_id = node.id == 42 and "m6_cv2_mode" or "m7_cv2_mode"
         local val = ""; pcall(function() val = params:string(p_id) end)
-        screen.level(4); screen.move(126, 45); screen.text_right("K2 MODE: "); screen.level(15); screen.move(126 - screen.text_extents("K2 MODE: "), 45); screen.text_right(val)
+        screen.level(15); screen.move(126, 45); screen.text_right(val)
+        local w = screen.text_extents(val)
+        screen.level(4); screen.move(126 - w - 2, 45); screen.text_right("K2 MODE: ")
     elseif node.id == 19 or node.id == 20 then
         local p_id = node.id == 19 and "m3_pv1_mode" or "m3_pv2_mode"
         local val = ""; pcall(function() val = params:string(p_id) end)
-        screen.level(4); screen.move(126, 45); screen.text_right("K2 DEST: "); screen.level(15); screen.move(126 - screen.text_extents("K2 DEST: "), 45); screen.text_right(val)
+        screen.level(15); screen.move(126, 45); screen.text_right(val)
+        local w = screen.text_extents(val)
+        screen.level(4); screen.move(126 - w - 2, 45); screen.text_right("K2 DEST: ")
     elseif node.id == 26 then
         local val = 0; pcall(function() val = params:get("m4_clk_thresh") end)
-        screen.level(4); screen.move(126, 45); screen.text_right("E2 THRESH: "); screen.level(15); screen.move(126 - screen.text_extents("E2 THRESH: "), 45); screen.text_right(string.format("%.2f", val))
+        local val_str = string.format("%.2f", val)
+        screen.level(15); screen.move(126, 45); screen.text_right(val_str)
+        local w = screen.text_extents(val_str)
+        screen.level(4); screen.move(126 - w - 2, 45); screen.text_right("E3 THRESH: ")
     elseif node.id == 34 then
         local val = 0; pcall(function() val = params:get("m5_gate_thresh") end)
-        screen.level(4); screen.move(126, 45); screen.text_right("E2 THRESH: "); screen.level(15); screen.move(126 - screen.text_extents("E2 THRESH: "), 45); screen.text_right(string.format("%.2f", val))
+        local val_str = string.format("%.2f", val)
+        screen.level(15); screen.move(126, 45); screen.text_right(val_str)
+        local w = screen.text_extents(val_str)
+        screen.level(4); screen.move(126 - w - 2, 45); screen.text_right("E3 THRESH: ")
     end
 end
 
