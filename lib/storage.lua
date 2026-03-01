@@ -1,4 +1,4 @@
--- lib/storage.lua v0.201
+-- lib/storage.lua v0.203
 -- CHANGELOG v0.201:
 -- 1. FIX FATAL: Añadida Blacklist para evitar que morph_time y master_vol se sobreescriban.
 -- 2. FEATURE: Morphing de cables en 2 fases (Fade Out 0-50%, Fade In 50-100%).
