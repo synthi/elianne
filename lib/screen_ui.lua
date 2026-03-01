@@ -1,21 +1,19 @@
--- lib/screen_ui.lua v0.101
--- CHANGELOG v0.101:
--- 1. FIX: Corregida inversión de brillo en etiquetas de menús de nodo (E3 Level).
--- 2. UI: Añadido PING a K3 en Menú A del 1047 (Range movido a K2).
--- 3. UI: Implementado destello visual (brillo 15) en la etiqueta PING al pulsar K3.
+-- lib/screen_ui.lua v0.102
+-- CHANGELOG v0.102:
+-- 1. FIX: fmt_hz muestra siempre Hz absolutos.
+-- 2. FIX: Etiqueta RNG eliminada para evitar desbordamiento.
+-- 3. FIX: Destello PING reescrito para ser robusto y visible.
 
 local ScreenUI = {}
 
-ScreenUI.ping_flash = { [6] = 0, [7] = 0 } -- Temporizadores para el destello visual
+ScreenUI.ping_flash = { [6] = 0, [7] = 0 }
 
-local MenuDef = {
-    [1] = { A = { title = "1004-P (A) MIXER", e1 = {id="m1_mix_sine", name="SINE"}, e2 = {id="m1_mix_tri", name="TRI"}, e3 = {id="m1_mix_saw", name="SAW"}, e4 = {id="m1_mix_pulse", name="PULSE"} }, B = { title = "1004-P (A) CORE", e1 = {id="m1_pwm", name="PWM"}, e2 = {id="m1_tune", name="TUNE"}, e3 = {id="m1_fine", name="FINE"}, k3 = {id="m1_range", name="RNG"} } },
-    [2] = { A = { title = "1004-P (B) MIXER", e1 = {id="m2_mix_sine", name="SINE"}, e2 = {id="m2_mix_tri", name="TRI"}, e3 = {id="m2_mix_saw", name="SAW"}, e4 = {id="m2_mix_pulse", name="PULSE"} }, B = { title = "1004-P (B) CORE", e1 = {id="m2_pwm", name="PWM"}, e2 = {id="m2_tune", name="TUNE"}, e3 = {id="m2_fine", name="FINE"}, k3 = {id="m2_range", name="RNG"} } },
-    [3] = { A = { title = "1023 - OSC 1", e1 = {id="m3_pwm1", name="PWM"}, e2 = {id="m3_tune1", name="TUNE"}, e3 = {id="m3_morph1", name="MORPH"}, k3 = {id="m3_range1", name="RNG"} }, B = { title = "1023 - OSC 2", e1 = {id="m3_pwm2", name="PWM"}, e2 = {id="m3_tune2", name="TUNE"}, e3 = {id="m3_morph2", name="MORPH"}, k3 = {id="m3_range2", name="RNG"} } },
+local MenuDef = {[1] = { A = { title = "1004-P (A) MIXER", e1 = {id="m1_mix_sine", name="SINE"}, e2 = {id="m1_mix_tri", name="TRI"}, e3 = {id="m1_mix_saw", name="SAW"}, e4 = {id="m1_mix_pulse", name="PULSE"} }, B = { title = "1004-P (A) CORE", e1 = {id="m1_pwm", name="PWM"}, e2 = {id="m1_tune", name="TUNE"}, e3 = {id="m1_fine", name="FINE"}, k2 = {id="m1_range", name=""} } },
+    [2] = { A = { title = "1004-P (B) MIXER", e1 = {id="m2_mix_sine", name="SINE"}, e2 = {id="m2_mix_tri", name="TRI"}, e3 = {id="m2_mix_saw", name="SAW"}, e4 = {id="m2_mix_pulse", name="PULSE"} }, B = { title = "1004-P (B) CORE", e1 = {id="m2_pwm", name="PWM"}, e2 = {id="m2_tune", name="TUNE"}, e3 = {id="m2_fine", name="FINE"}, k2 = {id="m2_range", name=""} } },
+    [3] = { A = { title = "1023 - OSC 1", e1 = {id="m3_pwm1", name="PWM"}, e2 = {id="m3_tune1", name="TUNE"}, e3 = {id="m3_morph1", name="MORPH"}, k2 = {id="m3_range1", name=""} }, B = { title = "1023 - OSC 2", e1 = {id="m3_pwm2", name="PWM"}, e2 = {id="m3_tune2", name="TUNE"}, e3 = {id="m3_morph2", name="MORPH"}, k2 = {id="m3_range2", name=""} } },
     [4] = { A = { title = "1016 NOISE", e1 = {id="m4_slow_rate", name="RATE"}, e2 = {id="m4_tilt1", name="TILT 1"}, e3 = {id="m4_tilt2", name="TILT 2"}, k2 = {id="m4_type1", name="N1"}, k3 = {id="m4_type2", name="N2"} }, B = { title = "1036 S&H", e1 = {id="m4_clk_rate", name="CLOCK"}, e2 = {id="m4_prob_skew", name="SKEW"}, e3 = {id="m4_glide", name="GLIDE"} } },
-    [5] = { A = { title = "1005 STATE", e1 = {id="m5_drive", name="DRIVE"}, e2 = {id="m5_mod_gain", name="MOD"}, e3 = {id="m5_unmod_gain", name="UNMOD"}, k2 = {id="m5_state", name="ST"} }, B = { title = "1005 VCA", e1 = {id="m5_xfade", name="XFADE"}, e2 = {id="m5_vca_base", name="BASE"}, e3 = {id="m5_vca_resp", name="RESP"}, k2 = {id="m5_state", name="ST"} } },
-    [6] = { A = { title = "1047 (A) FILTER", e1 = {id="m6_q", name="RES"}, e2 = {id="m6_cutoff", name="FREQ"}, e3 = {id="m6_fine", name="FINE"}, e4 = {id="m6_jfet", name="DRIVE"}, k2 = {id="m6_range", name="RNG"}, k3 = {id="m6_ping", name="PING"} }, B = { title = "1047 (A) NOTCH", e1 = {id="m6_p_shift", name="P.SHIFT"}, e2 = {id="m6_notch", name="NOTCH FRQ"}, e3 = {id="m6_final_q", name="KEY DCY"}, k3 = {id="m6_ping", name="PING"} } },
-    [7] = { A = { title = "1047 (B) FILTER", e1 = {id="m7_q", name="RES"}, e2 = {id="m7_cutoff", name="FREQ"}, e3 = {id="m7_fine", name="FINE"}, e4 = {id="m7_jfet", name="DRIVE"}, k2 = {id="m7_range", name="RNG"}, k3 = {id="m7_ping", name="PING"} }, B = { title = "1047 (B) NOTCH", e1 = {id="m7_p_shift", name="P.SHIFT"}, e2 = {id="m7_notch", name="NOTCH FRQ"}, e3 = {id="m7_final_q", name="KEY DCY"}, k3 = {id="m7_ping", name="PING"} } },
+    [5] = { A = { title = "1005 STATE", e1 = {id="m5_drive", name="DRIVE"}, e2 = {id="m5_mod_gain", name="MOD"}, e3 = {id="m5_unmod_gain", name="UNMOD"}, k2 = {id="m5_state", name="ST"} }, B = { title = "1005 VCA", e1 = {id="m5_xfade", name="XFADE"}, e2 = {id="m5_vca_base", name="BASE"}, e3 = {id="m5_vca_resp", name="RESP"}, k2 = {id="m5_state", name="ST"} } },[6] = { A = { title = "1047 (A) FILTER", e1 = {id="m6_q", name="RES"}, e2 = {id="m6_cutoff", name="FREQ"}, e3 = {id="m6_fine", name="FINE"}, e4 = {id="m6_jfet", name="DRIVE"}, k2 = {id="m6_range", name=""}, k3 = {id="m6_ping", name="PING"} }, B = { title = "1047 (A) NOTCH", e1 = {id="m6_p_shift", name="P.SHIFT"}, e2 = {id="m6_notch", name="NOTCH FRQ"}, e3 = {id="m6_final_q", name="KEY DCY"}, k3 = {id="m6_ping", name="PING"} } },
+    [7] = { A = { title = "1047 (B) FILTER", e1 = {id="m7_q", name="RES"}, e2 = {id="m7_cutoff", name="FREQ"}, e3 = {id="m7_fine", name="FINE"}, e4 = {id="m7_jfet", name="DRIVE"}, k2 = {id="m7_range", name=""}, k3 = {id="m7_ping", name="PING"} }, B = { title = "1047 (B) NOTCH", e1 = {id="m7_p_shift", name="P.SHIFT"}, e2 = {id="m7_notch", name="NOTCH FRQ"}, e3 = {id="m7_final_q", name="KEY DCY"}, k3 = {id="m7_ping", name="PING"} } },
     [8] = { A = { title = "NEXUS MASTER", e1 = {id="m8_res", name="RES"}, e2 = {id="m8_cut_l", name="VCF L"}, e3 = {id="m8_cut_r", name="VCF R"}, k2 = {id="m8_filt_byp", name="FILT"}, k3 = {id="m8_adc_mon", name="ADC"} }, B = { title = "NEXUS TAPE", e1 = {id="m8_tape_mix", name="MIX"}, e2 = {id="m8_tape_time", name="TIME"}, e3 = {id="m8_tape_fb", name="FDBK"}, e4 = {id="m8_wow", name="W&F"}, k2 = {id="m8_tape_sat", name="SAT"}, k3 = {id="m8_tape_mute", name="MUTE"} } }
 }
 
@@ -60,8 +58,8 @@ function ScreenUI.draw_idle(G)
     end
     screen.aa(0)
     
-    local vol, vcf1, vcf2 = 0.0, 20000, 20000
-    pcall(function() vol = params:get("m8_master_vol") or 0.0; vcf1 = params:get("m8_cut_l") or 20000; vcf2 = params:get("m8_cut_r") or 20000 end)
+    local vol, vcf1, vcf2 = 0.0, 18000, 18000
+    pcall(function() vol = params:get("m8_master_vol") or 0.0; vcf1 = params:get("m8_cut_l") or 18000; vcf2 = params:get("m8_cut_r") or 18000 end)
     screen.level(15); screen.move(2, 62); screen.text(string.format("%.1fdB", vol))
     screen.move(64, 62); screen.text_center(fmt_hz(vcf1))
     screen.move(126, 62); screen.text_right(fmt_hz(vcf2))
@@ -81,7 +79,6 @@ function ScreenUI.draw_node_menu(G)
     if val_px > 0 then screen.rect(64, 32, val_px, 6) else screen.rect(64 + val_px, 32, math.abs(val_px), 6) end
     screen.fill()
     
-    -- FIX: Brillo invertido corregido (Valor = 15, Etiqueta = 4)
     screen.level(15); screen.move(126, 55)
     local lvl_str = string.format("%.2f", node.level or 0)
     local w_lvl = screen.text_extents(lvl_str)
@@ -129,9 +126,9 @@ local function draw_param(def_e, x, y, label, align_right)
     if align_right then
         screen.level(15); screen.move(x, y); screen.text_right(str_val)
         local w = screen.text_extents(str_val)
-        screen.level(4); screen.move(x - w - 2, y); screen.text_right(label .. " " .. def_e.name .. ": ")
+        screen.level(4); screen.move(x - w - 2, y); screen.text_right(label .. " " .. def_e.name .. (def_e.name ~= "" and ": " or ""))
     else
-        screen.level(4); screen.move(x, y); screen.text(label .. " " .. def_e.name .. ": ")
+        screen.level(4); screen.move(x, y); screen.text(label .. " " .. def_e.name .. (def_e.name ~= "" and ": " or ""))
         screen.level(15); screen.text(str_val)
     end
 end
@@ -161,14 +158,16 @@ function ScreenUI.draw_module_menu(G)
         local k3_name = type(def.k3) == "table" and def.k3.name or "K3"
         local k3_val = ""; pcall(function() k3_val = clean_str(params:string(k3_id)) end)
         
-        -- LÓGICA DE DESTELLO VISUAL PARA PING
         local is_ping = (k3_name == "PING")
         local is_flashing = is_ping and (util.time() - (ScreenUI.ping_flash[G.focus.module_id] or 0) < 0.15)
         
-        screen.level(15); screen.move(126, 60); screen.text_right(k3_val)
-        local w = screen.text_extents(k3_val)
-        screen.level(is_flashing and 15 or 4) -- Destello en la etiqueta
-        screen.move(126 - w - 2, 60); screen.text_right("K3 " .. k3_name .. (k3_name ~= "" and ": " or ""))
+        if is_flashing then
+            screen.level(15); screen.move(126, 60); screen.text_right("PING!")
+        else
+            screen.level(15); screen.move(126, 60); screen.text_right(k3_val)
+            local w = screen.text_extents(k3_val)
+            screen.level(4); screen.move(126 - w - 2, 60); screen.text_right("K3 " .. k3_name .. (k3_name ~= "" and ": " or ""))
+        end
     end
 end
 
@@ -187,8 +186,8 @@ function ScreenUI.enc(G, n, d)
 
     if G.focus.state == "idle" then
         if n == 1 then pcall(function() params:delta("m8_master_vol", d * ((accel < 1) and 0.1 or 1.0)) end)
-        elseif n == 2 then pcall(function() params:set("m8_cut_l", util.clamp(params:get("m8_cut_l") + (d * ((accel < 1) and 0.1 or ((accel > 1) and 100.0 or 10.0))), 20.0, 20000.0)) end)
-        elseif n == 3 then pcall(function() params:set("m8_cut_r", util.clamp(params:get("m8_cut_r") + (d * ((accel < 1) and 0.1 or ((accel > 1) and 100.0 or 10.0))), 20.0, 20000.0)) end)
+        elseif n == 2 then pcall(function() params:set("m8_cut_l", util.clamp(params:get("m8_cut_l") + (d * ((accel < 1) and 0.1 or ((accel > 1) and 100.0 or 10.0))), 20.0, 18000.0)) end)
+        elseif n == 3 then pcall(function() params:set("m8_cut_r", util.clamp(params:get("m8_cut_r") + (d * ((accel < 1) and 0.1 or ((accel > 1) and 100.0 or 10.0))), 20.0, 18000.0)) end)
         elseif n == 4 then pcall(function() params:delta("m8_tape_mix", d * ((accel < 1) and 0.1 or 1.0)) end) end
     elseif G.focus.state == "in" or G.focus.state == "out" then
         if not G.focus.node_x or not G.focus.node_y then return end
@@ -220,7 +219,7 @@ function ScreenUI.enc(G, n, d)
         if target_param then
             pcall(function()
                 if string.find(target_param, "tune") or string.find(target_param, "cutoff") then
-                    params:set(target_param, util.clamp(params:get(target_param) + (d * ((accel < 1) and 0.1 or ((accel > 1) and 10.0 or 1.0))), 0.01, 20000.0))
+                    params:set(target_param, util.clamp(params:get(target_param) + (d * ((accel < 1) and 0.1 or ((accel > 1) and 10.0 or 1.0))), 0.01, 18000.0))
                 elseif string.find(target_param, "fine") then
                     params:set(target_param, util.clamp(params:get(target_param) + (d * ((accel < 1) and 0.001 or 0.01)), -5.0, 5.0))
                 else
@@ -265,7 +264,6 @@ function ScreenUI.key(G, n, z)
                         local p = params.params[p_idx]
                         if p.type == "trigger" then 
                             params:set(target_param, 1)
-                            -- REGISTRO DE DESTELLO VISUAL
                             if target_param == "m6_ping" then ScreenUI.ping_flash[6] = util.time() end
                             if target_param == "m7_ping" then ScreenUI.ping_flash[7] = util.time() end
                         elseif p.options then 
