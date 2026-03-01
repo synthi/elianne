@@ -41,7 +41,7 @@ function G.init_nodes()
         local node = {
             id = id, x = x, y = y, type = type, 
             module = module_idx, name = name,
-            level = 1.0, pan = 0.0, inverted = false
+            level = 0.5, pan = 0.0, inverted = false
         }
         G.nodes[id] = node
         G.grid_map[x][y] = node
