@@ -1,4 +1,4 @@
--- lib/screen_ui.lua v0.202
+-- lib/screen_ui.lua v0.203
 -- CHANGELOG v0.201:
 -- 1. UI: Compresión visual del Grid Virtual para no pisar la telemetría.
 -- 2. ERGONOMÍA: HI/LO y PING movidos a K2.
@@ -327,7 +327,8 @@ function ScreenUI.key(G, n, z)
                     local p_idx = params.lookup[target_param]
                     if p_idx then
                         local p = params.params[p_idx]
-                        if p.type == "trigger" then 
+                        -- FIX: Norns usa p.t == 4 para triggers, o lo detectamos por el ID
+                        if p.t == 4 or string.find(target_param, "ping") then 
                             params:set(target_param, 1)
                             if target_param == "m6_ping" then ScreenUI.ping_flash[6] = util.time() end
                             if target_param == "m7_ping" then ScreenUI.ping_flash[7] = util.time() end
