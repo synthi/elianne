@@ -1,7 +1,7 @@
--- elianne.lua v0.301
--- CHANGELOG v0.300:
--- 1. FEATURE: Voice Allocator (Cerebro Polifónico) para los nodos MIDI.
--- 2. FEATURE: Sincronización de BPM global hacia SuperCollider.
+-- elianne.lua v0.8.1
+-- CHANGELOG v0.8.1:
+-- 1. FIX FATAL: Eliminado pcall en load_dependencies para evitar Pantallas Negras Silenciosas.
+-- 2. FIX FATAL: Restaurado params:bang() protegido por G.booting para restaurar MIDI y evitar UDP Flood.
 
 engine.name = 'Elianne'
 
@@ -9,173 +9,74 @@ print("========================================")
 print("ELIANNE DEBUG: INICIANDO CARGA DE MÓDULOS")
 print("========================================")
 
-local G, GridUI, ScreenUI, Matrix, Params, Storage, Faderbank
+local G, GridUI, ScreenUI, Matrix, Params, Storage
 
 local function load_dependencies()
     G = include('lib/globals')
+    print("ELIANNE DEBUG: globals.lua cargado.")
     GridUI = include('lib/grid_ui')
+    print("ELIANNE DEBUG: grid_ui.lua cargado.")
     ScreenUI = include('lib/screen_ui')
+    print("ELIANNE DEBUG: screen_ui.lua cargado.")
     Matrix = include('lib/matrix')
+    print("ELIANNE DEBUG: matrix.lua cargado.")
     Params = include('lib/params_setup')
+    print("ELIANNE DEBUG: params_setup.lua cargado.")
     Storage = include('lib/storage')
-    Faderbank = include('lib/16n')
+    print("ELIANNE DEBUG: storage.lua cargado.")
 end
 
-local status, err = pcall(load_dependencies)
-if not status then
-    print("ELIANNE FATAL ERROR: " .. err)
-    error(err) -- Forzamos el crash para que Maiden lo muestre
-end
+-- Carga directa sin pcall. Si falla, crashea en Maiden como exige el protocolo.
+load_dependencies()
 
 g = grid.connect()
-local grid_metro, screen_metro
+print("ELIANNE DEBUG: Grid conectado.")
 
--- =====================================================================
--- VOICE ALLOCATOR (CEREBRO POLIFÓNICO MIDI)
--- =====================================================================
-local active_notes = {} -- {note = {voice_idx = 1}}
-local voice_pool = {
-    {pitch_node = nil, gate_node = nil, active = false, last_note = nil},
-    {pitch_node = nil, gate_node = nil, active = false, last_note = nil},
-    {pitch_node = nil, gate_node = nil, active = false, last_note = nil},
-    {pitch_node = nil, gate_node = nil, active = false, last_note = nil}
-}
-local last_voice_used = 0
-
-local function build_voice_pool(channel)
-    -- Limpiar pool
-    for i=1,4 do voice_pool[i].pitch_node = nil; voice_pool[i].gate_node = nil end
-    
-    local v_idx = 1
-    for i=1, 4 do
-        local ch = params:get("midi_ch_"..i)
-        if ch == 0 or ch == channel then
-            local mode = params:get("midi_mode_"..i)
-            if mode == 1 then -- PITCH
-                voice_pool[v_idx].pitch_node = i
-                v_idx = v_idx + 1
-            elseif mode == 2 then -- GATE
-                -- Buscar si hay un pitch huérfano para emparejarlo, si no, usar nueva voz
-                local paired = false
-                for j=1, 4 do
-                    if voice_pool[j].pitch_node and not voice_pool[j].gate_node then
-                        voice_pool[j].gate_node = i
-                        paired = true
-                        break
-                    end
-                end
-                if not paired then
-                    voice_pool[v_idx].gate_node = i
-                    v_idx = v_idx + 1
-                end
-            end
-        end
-    end
-end
-
-local function allocate_voice()
-    local mode = params:get("midi_poly_mode")
-    if mode == 1 then -- ROTATE
-        for i=1, 4 do
-            last_voice_used = (last_voice_used % 4) + 1
-            if (voice_pool[last_voice_used].pitch_node or voice_pool[last_voice_used].gate_node) and not voice_pool[last_voice_used].active then
-                return last_voice_used
-            end
-        end
-    else -- RESET
-        for i=1, 4 do
-            if (voice_pool[i].pitch_node or voice_pool[i].gate_node) and not voice_pool[i].active then
-                return i
-            end
-        end
-    end
-    return nil -- No hay voces libres
-end
-
-local function midi_event(data)
-    local msg = midi.to_msg(data)
-    local target_dev = params:get("midi_device")
-    local target_ch = params:get("midi_ch_1") -- Simplificación: asume que el canal base dicta el pool
-    
-    if msg.ch ~= target_ch and target_ch ~= 0 then return end
-    
-    build_voice_pool(msg.ch)
-
-    if msg.type == "note_on" then
-        local v_idx = allocate_voice()
-        if v_idx then
-            voice_pool[v_idx].active = true
-            voice_pool[v_idx].last_note = msg.note
-            active_notes[msg.note] = {voice_idx = v_idx}
-            
-            if voice_pool[v_idx].pitch_node then
-                local oct_offset = params:get("midi_oct_"..voice_pool[v_idx].pitch_node)
-                local volt = ((msg.note - 60) / 12.0) + oct_offset
-                engine.set_midi_val(voice_pool[v_idx].pitch_node, volt)
-            end
-            if voice_pool[v_idx].gate_node then
-                engine.set_midi_val(voice_pool[v_idx].gate_node, 1.0)
-            end
-        end
-    elseif msg.type == "note_off" then
-        if active_notes[msg.note] then
-            local v_idx = active_notes[msg.note].voice_idx
-            voice_pool[v_idx].active = false
-            active_notes[msg.note] = nil
-            
-            -- PITCH HOLD: No reseteamos el pitch_node
-            if voice_pool[v_idx].gate_node then
-                engine.set_midi_val(voice_pool[v_idx].gate_node, 0.0)
-            end
-        end
-    elseif msg.type == "cc" then
-        -- Ruteo directo de CCs
-        for i=1, 4 do
-            local ch = params:get("midi_ch_"..i)
-            if (ch == 0 or ch == msg.ch) and params:get("midi_mode_"..i) == 3 then
-                if params:get("midi_cc_"..i) == msg.cc then
-                    local val = msg.val / 127.0
-                    if params:get("midi_pol_"..i) == 2 then val = (val * 2.0) - 1.0 end -- Bipolar
-                    engine.set_midi_val(i, val)
-                end
-            end
-        end
-    end
-end
-
--- Conectar todos los dispositivos MIDI
-for i = 1, 4 do
-    local m = midi.connect(i)
-    m.event = midi_event
-end
-
--- Sincronización de Reloj Global
-clock.tempo_change_handler = function(bpm)
-    engine.set_clock_bpm(bpm)
-end
-
--- =====================================================================
+local grid_metro
+local screen_metro
 
 osc.event = function(path, args, from)
     if path == '/elianne_levels' then
         if not G.node_levels then G.node_levels = {} end
-        for i = 1, 69 do G.node_levels[i] = args[i + 2] or 0 end
+        for i = 1, 64 do
+            G.node_levels[i] = args[i + 2] or 0
+        end
         G.screen_dirty = true
     end
 end
 
 function init()
-    pcall(G.init_nodes)
-    pcall(Params.init, G)
-    params:default()
-    pcall(Matrix.init, G)
-    pcall(GridUI.init, G)
+    print("========================================")
+    print("ELIANNE DEBUG: INICIANDO BOOT SEQUENCE")
+    print("========================================")
     
+    -- CANDADO DE ARRANQUE SEGURO
+    G.booting = true
+    
+    print("ELIANNE DEBUG: 1. Inicializando Nodos (G.init_nodes)...")
+    local s1, e1 = pcall(G.init_nodes)
+    if not s1 then print("ERROR EN NODOS: " .. e1) end
+    
+    print("ELIANNE DEBUG: 2. Registrando Parámetros (Params.init)...")
+    local s2, e2 = pcall(Params.init, G)
+    if not s2 then print("ERROR EN PARAMS: " .. e2) end
+    
+    print("ELIANNE DEBUG: 3. Cargando PSET por defecto (params:default)...")
+    params:default()
+    
+    print("ELIANNE DEBUG: 4. Inicializando Matriz DSP (Matrix.init)...")
+    local s3, e3 = pcall(Matrix.init, G)
+    if not s3 then print("ERROR EN MATRIZ: " .. e3) end
+    
+    print("ELIANNE DEBUG: 5. Inicializando UI del Grid (GridUI.init)...")
+    local s4, e4 = pcall(GridUI.init, G)
+    if not s4 then print("ERROR EN GRID UI: " .. e4) end
+    
+    print("ELIANNE DEBUG: 6. Configurando interceptores de guardado...")
     params.action_write = function(filename, name, number) Storage.save(G, number) end
     params.action_read = function(filename, silent, number) Storage.load(G, number) end
     
-    engine.set_clock_bpm(clock.get_tempo())
-    
+    print("ELIANNE DEBUG: 7. Iniciando Metros (Grid y Pantalla)...")
     grid_metro = metro.init()
     grid_metro.time = 1/30
     grid_metro.event = function() GridUI.redraw(G, g) end
@@ -184,13 +85,46 @@ function init()
     screen_metro = metro.init()
     screen_metro.time = 1/15
     screen_metro.event = function() 
-        if G.screen_dirty then redraw(); G.screen_dirty = false end
+        if G.screen_dirty then
+            redraw()
+            G.screen_dirty = false
+        end
     end
     screen_metro:start()
+    
+    print("ELIANNE DEBUG: 8. Ejecutando params:bang() protegido...")
+    params:bang()
+    
+    -- LIBERACIÓN DEL CANDADO
+    G.booting = false
+    
+    print("========================================")
+    print("ELIANNE DEBUG: BOOT COMPLETADO EXITOSAMENTE")
+    print("========================================")
 end
 
-function enc(n, d) ScreenUI.enc(G, n, d); G.screen_dirty = true end
-function key(n, z) ScreenUI.key(G, n, z); G.screen_dirty = true end
-g.key = function(x, y, z) GridUI.key(G, g, x, y, z) end
-function redraw() screen.clear(); ScreenUI.draw(G); screen.update() end
-function cleanup() if grid_metro then grid_metro:stop() end; if screen_metro then screen_metro:stop() end end
+function enc(n, d)
+    ScreenUI.enc(G, n, d)
+    G.screen_dirty = true
+end
+
+function key(n, z)
+    ScreenUI.key(G, n, z)
+    G.screen_dirty = true
+end
+
+g.key = function(x, y, z)
+    GridUI.key(G, g, x, y, z)
+end
+
+function redraw()
+    screen.clear()
+    ScreenUI.draw(G)
+    screen.update()
+end
+
+function cleanup()
+    print("ELIANNE DEBUG: Ejecutando Cleanup...")
+    if grid_metro then grid_metro:stop() end
+    if screen_metro then screen_metro:stop() end
+end
