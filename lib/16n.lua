@@ -1,5 +1,6 @@
--- lib/16n.lua v1.0
--- Driver MIDI para controlador 16n Faderbank (Extraído de Ncoco)
+-- lib/16n.lua v1.1
+-- CHANGELOG v1.1:
+-- 1. FIX FATAL: Callback MIDI envuelto en pcall para proteger el boot de Norns.
 
 local _16n = {}
 _16n.last_values = {}
@@ -49,7 +50,8 @@ _16n.init = function(cc_cb_fn)
            local last = _16n.last_values[d.cc] or -1
            if d.val ~= last then
              _16n.last_values[d.cc] = d.val
-             cc_cb_fn(d) 
+             -- PROTECCIÓN DE CALLBACK ASÍNCRONO
+             pcall(cc_cb_fn, d) 
            end
         end
       end
