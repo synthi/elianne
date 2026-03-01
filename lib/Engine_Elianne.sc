@@ -1,4 +1,4 @@
-// lib/Engine_Elianne.sc v0.100
+// lib/Engine_Elianne.sc v0.101
 // CHANGELOG v0.100:
 // 1. OPTIMIZATION: Dynamic Node Pausing (pause_matrix_row).
 // 2. OPTIMIZATION: System Age movido a .kr con K2A.ar para ahorrar 10% CPU.
