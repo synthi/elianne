@@ -1,4 +1,4 @@
--- elianne.lua v0.300
+-- elianne.lua v0.301
 -- CHANGELOG v0.300:
 -- 1. FEATURE: Voice Allocator (Cerebro Polifónico) para los nodos MIDI.
 -- 2. FEATURE: Sincronización de BPM global hacia SuperCollider.
@@ -21,7 +21,11 @@ local function load_dependencies()
     Faderbank = include('lib/16n')
 end
 
-pcall(load_dependencies)
+local status, err = pcall(load_dependencies)
+if not status then
+    print("ELIANNE FATAL ERROR: " .. err)
+    error(err) -- Forzamos el crash para que Maiden lo muestre
+end
 
 g = grid.connect()
 local grid_metro, screen_metro
