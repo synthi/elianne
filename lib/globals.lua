@@ -1,7 +1,6 @@
--- lib/globals.lua v0.3.1
--- CHANGELOG v0.3:
--- 1. NOMBRES: Actualizados nombres de salidas (Triangle, Sine 1/2, RM Out).
--- 2. PARCHEO: Añadido parcheo por defecto (Osc 1 a Nexus).
+-- lib/globals.lua v0.3.2
+-- CHANGELOG v0.3.2:
+-- 1. NOMBRES: Nodos 17 y 18 del 1023 renombrados a "FM/Morph In".
 
 local G = {}
 
@@ -59,7 +58,7 @@ function G.init_nodes()
     add_node(1, 7, "out", 1, "Sine Out")
     add_node(2, 7, "out", 1, "Pulse Out")
 
-    -- MÓDULO 2: 1004-T (B) [IDs 9-16]
+    -- MÓDULO 2: 1004-T (B)[IDs 9-16]
     add_node(3, 1, "in", 2, "FM 1 In")
     add_node(4, 1, "in", 2, "FM 2 In")
     add_node(3, 2, "in", 2, "PWM In")
@@ -70,8 +69,8 @@ function G.init_nodes()
     add_node(4, 7, "out", 2, "Pulse Out")
 
     -- MÓDULO 3: 1023 Dual VCO[IDs 17-24]
-    add_node(5, 1, "in", 3, "FM 1 In")
-    add_node(6, 1, "in", 3, "FM 2 In")
+    add_node(5, 1, "in", 3, "FM/Morph 1 In")
+    add_node(6, 1, "in", 3, "FM/Morph 2 In")
     add_node(5, 2, "in", 3, "PWM/VOct 1 In")
     add_node(6, 2, "in", 3, "PWM/VOct 2 In")
     add_node(5, 6, "out", 3, "Osc 1 Out")
@@ -97,7 +96,7 @@ function G.init_nodes()
     add_node(9, 7, "out", 5, "Sum (Upper) Out")
     add_node(10, 7, "out", 5, "Diff (Lower) Out")
 
-    -- MÓDULO 6: 1047 (A) [IDs 39-46]
+    -- MÓDULO 6: 1047 (A)[IDs 39-46]
     add_node(11, 1, "in", 6, "Audio In")
     add_node(12, 1, "in", 6, "Freq CV 1 In")
     add_node(11, 2, "in", 6, "Resonance CV In")
@@ -107,7 +106,7 @@ function G.init_nodes()
     add_node(11, 7, "out", 6, "High Pass Out")
     add_node(12, 7, "out", 6, "Notch Out")
 
-    -- MÓDULO 7: 1047 (B) [IDs 47-54]
+    -- MÓDULO 7: 1047 (B)[IDs 47-54]
     add_node(13, 1, "in", 7, "Audio In")
     add_node(14, 1, "in", 7, "Freq CV 1 In")
     add_node(13, 2, "in", 7, "Resonance CV In")
@@ -138,7 +137,6 @@ function G.init_nodes()
         end
     end
 
-    -- PARCHEO POR DEFECTO: Osc 1 Main Out (ID 21) a Nexus Mod In L (ID 55) y R (ID 56)
     G.patch[21][55].active = true
     G.patch[21][56].active = true
 end
