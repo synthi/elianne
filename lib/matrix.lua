@@ -1,6 +1,6 @@
--- lib/matrix.lua v0.103
--- CHANGELOG v0.103:
--- 1. OPTIMIZACIÓN: Implementado Array Batching (patch_row_set) en Matrix.init para evitar UDP Flood.
+-- lib/matrix.lua v0.104
+-- CHANGELOG v0.104:
+-- 1. FIX: Sincronización de 'current_gain' en connect/disconnect para evitar saltos en Morphing.
 
 local Matrix = {}
 
@@ -21,29 +21,30 @@ end
 
 function Matrix.connect(src_id, dst_id, G)
     G.patch[src_id][dst_id].active = true
+    G.patch[src_id][dst_id].current_gain = 1.0
     engine.resume_matrix_row(dst_id - 1)
     engine.patch_set(dst_id, src_id, 1.0)
 end
 
 function Matrix.disconnect(src_id, dst_id, G)
     G.patch[src_id][dst_id].active = false
+    G.patch[src_id][dst_id].current_gain = 0.0
     engine.patch_set(dst_id, src_id, 0.0)
     evaluate_row_pause(dst_id, G)
 end
 
 function Matrix.init(G)
-    -- 1. Enviar conexiones usando Array Batching (64 mensajes en lugar de 4096)
     for dst_id = 1, 64 do
         local has_active = false
         local row_vals = {}
         
         for src_id = 1, 64 do
             local is_active = G.patch[src_id] and G.patch[src_id][dst_id] and G.patch[src_id][dst_id].active
+            G.patch[src_id][dst_id].current_gain = is_active and 1.0 or 0.0
             row_vals[src_id] = is_active and 1.0 or 0.0
             if is_active then has_active = true end
         end
         
-        -- Empaquetar y enviar la fila completa
         local row_str = table.concat(row_vals, ",")
         engine.patch_row_set(dst_id, row_str)
         
@@ -54,7 +55,6 @@ function Matrix.init(G)
         end
     end
     
-    -- 2. Inicializar niveles y paneos
     for i = 1, 64 do
         local lvl = params:get("node_lvl_" .. i)
         local node = G.nodes[i]
@@ -75,7 +75,7 @@ function Matrix.init(G)
         end
     end
     
-    print("ELIANNE: Matriz DSP (Array Batching + Pausing) Inicializada al 100%.")
+    print("ELIANNE: Matriz DSP (Array Batching + State Tracking) Inicializada al 100%.")
 end
 
 function Matrix.update_node_params(node)
