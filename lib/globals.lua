@@ -1,7 +1,6 @@
--- lib/globals.lua v0.200
--- CHANGELOG v0.200:
--- 1. TOPOLOGÍA: Nodos 57/58 convertidos a CV In. Nodos 63/64 convertidos a ADC Out.
--- 2. ESTADO: Añadidas variables para SHIFT y sistema de SNAPSHOTS.
+-- lib/globals.lua v0.201
+-- CHANGELOG v0.201:
+-- 1. UI: Renombrados nodos 23 y 24 a "Multi 1 Out" y "Multi 2 Out".
 
 local G = {}
 
@@ -20,7 +19,6 @@ G.focus = {
     target_y = nil
 }
 
--- ESTADO SHIFT Y SNAPSHOTS
 G.shift_held = false
 G.active_snap = nil
 G.snapshots = {}
@@ -88,10 +86,10 @@ function G.init_nodes()
     add_node(6, 2, "in", 3, "PWM/VOct 2 In")
     add_node(5, 6, "out", 3, "Osc 1 Out")
     add_node(6, 6, "out", 3, "Osc 2 Out")
-    add_node(5, 7, "out", 3, "Sine 1 Out")
-    add_node(6, 7, "out", 3, "Sine 2 Out")
+    add_node(5, 7, "out", 3, "Multi 1 Out") -- RENOMBRADO
+    add_node(6, 7, "out", 3, "Multi 2 Out") -- RENOMBRADO
 
-    -- MÓDULO 4: 1016/36 Noise/Random [IDs 25-30]
+    -- MÓDULO 4: 1016/36 Noise/Random[IDs 25-30]
     add_node(7, 1, "in", 4, "S&H Sig In")
     add_node(8, 1, "in", 4, "Clock In")
     add_node(7, 6, "out", 4, "Noise 1 Out")
@@ -129,19 +127,19 @@ function G.init_nodes()
     add_node(13, 7, "out", 7, "High Pass Out")
     add_node(14, 7, "out", 7, "Notch Out")
 
-    -- MÓDULO 8: NEXUS [IDs 55-62]
+    -- MÓDULO 8: NEXUS[IDs 55-62]
     add_node(15, 1, "in", 8, "Modular In L")
     add_node(16, 1, "in", 8, "Modular In R")
-    add_node(15, 2, "in", 8, "CV L In") -- NUEVO
-    add_node(16, 2, "in", 8, "CV R In") -- NUEVO
+    add_node(15, 2, "in", 8, "CV L In")
+    add_node(16, 2, "in", 8, "CV R In")
     add_node(15, 6, "out", 8, "Master Out L")
     add_node(16, 6, "out", 8, "Master Out R")
     add_node(15, 7, "out", 8, "Tape Send L")
     add_node(16, 7, "out", 8, "Tape Send R")
 
     -- ADC OUTS (Fila 8)[IDs 63-64]
-    add_node(15, 8, "out", 8, "ADC Out L") -- NUEVO
-    add_node(16, 8, "out", 8, "ADC Out R") -- NUEVO
+    add_node(15, 8, "out", 8, "ADC Out L")
+    add_node(16, 8, "out", 8, "ADC Out R")
 
     for src = 1, 64 do
         G.patch[src] = {}
