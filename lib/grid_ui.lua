@@ -164,7 +164,7 @@ function GridUI.redraw(G, g)
         for y = 1, 8 do
             local b = 0
             
-            if y == 8 and x <= 14 then
+            if y == 8 and x <= 8 then
                 if x == 1 then
                     b = G.shift_held and 15 or 8
                 elseif x >= 3 and x <= 8 then
