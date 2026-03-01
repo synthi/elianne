@@ -1,7 +1,6 @@
--- lib/params_setup.lua v0.203
--- CHANGELOG v0.203:
--- 1. FEATURE: Añadidos m1_fm1_type, m1_fm2_type, m2_fm1_type, m2_fm2_type (Lin/Exp).
--- 2. FEATURE: Añadidos m3_out3_wave, m3_out4_wave (Selector de onda para 1023).
+-- lib/params_setup.lua v0.204
+-- CHANGELOG v0.204:
+-- 1. FEATURE: m8_tape_time expandido a 10.0 segundos máximos.
 
 local Params = {}
 
@@ -104,7 +103,7 @@ function Params.init(G)
     params:add{type = "control", id = "m8_cut_l", name = "Master Cutoff L", controlspec = controlspec.new(20.0, 18000.0, 'exp', 0.01, 18000.0, "Hz"), action = function(x) if G.booting then return end; engine.m8_cut_l(x) end}
     params:add{type = "control", id = "m8_cut_r", name = "Master Cutoff R", controlspec = controlspec.new(20.0, 18000.0, 'exp', 0.01, 18000.0, "Hz"), action = function(x) if G.booting then return end; engine.m8_cut_r(x) end}
     params:add{type = "control", id = "m8_res", name = "Master Resonance", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.0), action = function(x) if G.booting then return end; engine.m8_res(x) end}
-    params:add{type = "control", id = "m8_tape_time", name = "Tape Time", controlspec = controlspec.new(0.01, 2.0, 'lin', 0.01, 0.3, "s"), action = function(x) if G.booting then return end; engine.m8_tape_time(x) end}
+    params:add{type = "control", id = "m8_tape_time", name = "Tape Time", controlspec = controlspec.new(0.01, 10.0, 'lin', 0.01, 0.3, "s"), action = function(x) if G.booting then return end; engine.m8_tape_time(x) end}
     params:add{type = "control", id = "m8_tape_fb", name = "Tape Feedback", controlspec = controlspec.new(0.0, 1.2, 'lin', 0.01, 0.4), action = function(x) if G.booting then return end; engine.m8_tape_fb(x) end}
     params:add{type = "control", id = "m8_tape_mix", name = "Tape Dry/Wet", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.2), action = function(x) if G.booting then return end; engine.m8_tape_mix(x) end}
     params:add{type = "control", id = "m8_wow", name = "Tape Wow/Flutter", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.1), action = function(x) if G.booting then return end; engine.set_tape_physics("wow", x); engine.set_tape_physics("flutter", x * 0.5) end}
