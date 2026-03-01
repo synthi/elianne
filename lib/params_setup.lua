@@ -1,4 +1,4 @@
--- lib/params_setup.lua v0.200
+-- lib/params_setup.lua v0.201
 -- CHANGELOG v0.200:
 -- 1. FEATURE: Añadido Morph Time (0 a 120s) en GLOBAL PHYSICS.
 -- 2. FEATURE: Añadidos m8_cv_dest_l y m8_cv_dest_r para el Nexus.
@@ -10,7 +10,7 @@ function Params.init(G)
 
     params:add_group("GLOBAL PHYSICS", 2)
     params:add{type = "control", id = "thermal_drift", name = "System Age", controlspec = controlspec.new(0.0, 0.1, 'lin', 0.001, 0.01), action = function(x) engine.set_global_physics("thermal", x) end}
-    params:add{type = "control", id = "morph_time", name = "Morph Time", controlspec = controlspec.new(0.0, 120.0, 'lin', 0.1, 0.0, "s")}
+    params:add{type = "control", id = "morph_time", name = "Morph Time", controlspec = controlspec.new(0.0, 120.0, 'lin', 0.1, 1.0, "s")}
 
     params:add_group("MOD 1: 1004-P (A)", 8)
     params:add{type = "control", id = "m1_tune", name = "Tune", controlspec = controlspec.new(10.0, 16000.0, 'exp', 0.001, 100.0, "Hz"), action = function(x) engine.m1_tune(x) end}
@@ -56,7 +56,7 @@ function Params.init(G)
     params:add{type = "control", id = "m4_prob_skew", name = "Probability Skew", controlspec = controlspec.new(-1.0, 1.0, 'lin', 0.01, 0.0), action = function(x) engine.m4_prob_skew(x) end}
     params:add{type = "control", id = "m4_glide", name = "S&H Glide", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.0), action = function(x) engine.m4_glide(x) end}
     params:add{type = "control", id = "m4_cap_droop", name = "Capacitor Droop", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.05), action = function(x) engine.set_global_physics("droop", x) end}
-    params:add{type = "control", id = "m4_clk_thresh", name = "Clock Threshold", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.1), action = function(x) engine.m4_clk_thresh(x) end}
+    params:add{type = "control", id = "m4_clk_thresh", name = "Clock Threshold", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.001, 0.1), action = function(x) engine.m4_clk_thresh(x) end}
 
     params:add_group("MOD 5: 1005 MODAMP", 10)
     params:add{type = "control", id = "m5_mod_gain", name = "MOD Gain", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 1.0), action = function(x) engine.m5_mod_gain(x) end}
@@ -68,7 +68,7 @@ function Params.init(G)
     params:add{type = "control", id = "m5_c_bleed", name = "Carrier Bleed", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.02), action = function(x) engine.set_global_physics("c_bleed", x) end}
     params:add{type = "control", id = "m5_m_bleed", name = "Modulator Bleed", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.01), action = function(x) engine.set_global_physics("m_bleed", x) end}
     params:add{type = "option", id = "m5_state", name = "1005 State", options = {"UNMOD", "MOD"}, default = 1, action = function(x) engine.m5_state_mode(x - 1) end}
-    params:add{type = "control", id = "m5_gate_thresh", name = "Gate Threshold", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.5), action = function(x) engine.m5_gate_thresh(x) end}
+    params:add{type = "control", id = "m5_gate_thresh", name = "Gate Threshold", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.001, 0.5), action = function(x) engine.m5_gate_thresh(x) end}
 
     params:add_group("MOD 6: 1047 (A)", 9)
     params:add{type = "control", id = "m6_cutoff", name = "Cutoff", controlspec = controlspec.new(10.0, 18000.0, 'exp', 0.01, 1000.0, "Hz"), action = function(x) engine.m6_cutoff(x) end}
