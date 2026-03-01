@@ -1,4 +1,4 @@
--- lib/matrix.lua v0.101
+-- lib/matrix.lua v0.102
 -- CHANGELOG v0.101:
 -- 1. FIX: Reconstruido sobre la base correcta v0.24 (Deltas con patch_set en lugar de UDP Flood).
 -- 2. OPTIMIZATION: Dynamic Node Pausing integrado con la lógica de Deltas para ahorrar CPU.
@@ -39,15 +39,13 @@ function Matrix.disconnect(src_id, dst_id, G)
 end
 
 function Matrix.init(G)
-   -- 1. Enviar TODAS las conexiones (1.0 para activas, 0.0 para inactivas) y evaluar pausas
+   -- 1. Enviar SOLO las conexiones activas y evaluar pausas (Evita UDP Flood)
     for dst_id = 1, 64 do
         local has_active = false
         for src_id = 1, 64 do
             if G.patch[src_id] and G.patch[src_id][dst_id] and G.patch[src_id][dst_id].active then
                 engine.patch_set(dst_id, src_id, 1.0)
                 has_active = true
-            else
-                engine.patch_set(dst_id, src_id, 0.0) -- CRÍTICO: Purgar cables fantasma
             end
         end
         
