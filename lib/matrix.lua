@@ -39,13 +39,15 @@ function Matrix.disconnect(src_id, dst_id, G)
 end
 
 function Matrix.init(G)
-    -- 1. Enviar solo las conexiones activas y evaluar pausas
+   -- 1. Enviar TODAS las conexiones (1.0 para activas, 0.0 para inactivas) y evaluar pausas
     for dst_id = 1, 64 do
         local has_active = false
         for src_id = 1, 64 do
             if G.patch[src_id] and G.patch[src_id][dst_id] and G.patch[src_id][dst_id].active then
                 engine.patch_set(dst_id, src_id, 1.0)
                 has_active = true
+            else
+                engine.patch_set(dst_id, src_id, 0.0) -- CRÍTICO: Purgar cables fantasma
             end
         end
         
