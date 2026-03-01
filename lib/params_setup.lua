@@ -1,15 +1,16 @@
--- lib/params_setup.lua v0.104
--- CHANGELOG v0.104:
--- 1. FIX: Rango PWM expandido a 0.0 - 1.0.
--- 2. FIX: Resolución de Notch Freq aumentada a 0.001.
+-- lib/params_setup.lua v0.200
+-- CHANGELOG v0.200:
+-- 1. FEATURE: Añadido Morph Time (0 a 120s) en GLOBAL PHYSICS.
+-- 2. FEATURE: Añadidos m8_cv_dest_l y m8_cv_dest_r para el Nexus.
 
 local Params = {}
 
 function Params.init(G)
     params:add_separator("ELIANNE - ARP 2500")
 
-    params:add_group("GLOBAL PHYSICS", 1)
+    params:add_group("GLOBAL PHYSICS", 2)
     params:add{type = "control", id = "thermal_drift", name = "System Age", controlspec = controlspec.new(0.0, 0.1, 'lin', 0.001, 0.01), action = function(x) engine.set_global_physics("thermal", x) end}
+    params:add{type = "control", id = "morph_time", name = "Morph Time", controlspec = controlspec.new(0.0, 120.0, 'lin', 0.1, 0.0, "s")}
 
     params:add_group("MOD 1: 1004-P (A)", 8)
     params:add{type = "control", id = "m1_tune", name = "Tune", controlspec = controlspec.new(10.0, 16000.0, 'exp', 0.001, 100.0, "Hz"), action = function(x) engine.m1_tune(x) end}
@@ -79,7 +80,6 @@ function Params.init(G)
     params:add{type = "control", id = "m6_p_shift", name = "Perc Pitch Shift", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.1), action = function(x) engine.set_global_physics("p_shift", x) end}
     params:add{type = "control", id = "m6_jfet", name = "JFET Drive", controlspec = controlspec.new(0.1, 5.0, 'lin', 0.01, 1.5), action = function(x) engine.m6_jfet(x) end}
     params:add{type = "option", id = "m6_cv2_mode", name = "CV2 Mode", options = {"NORM", "KEYB"}, default = 1, action = function(x) engine.m6_cv2_mode(x - 1) end}
-    params:add{type = "trigger", id = "m6_ping", name = "Manual Ping", action = function() engine.m6_ping() end}
 
     params:add_group("MOD 7: 1047 (B)", 9)
     params:add{type = "control", id = "m7_cutoff", name = "Cutoff", controlspec = controlspec.new(10.0, 18000.0, 'exp', 0.01, 1000.0, "Hz"), action = function(x) engine.m7_cutoff(x) end}
@@ -91,9 +91,9 @@ function Params.init(G)
     params:add{type = "control", id = "m7_p_shift", name = "Perc Pitch Shift", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.1), action = function(x) engine.set_global_physics("p_shift", x) end}
     params:add{type = "control", id = "m7_jfet", name = "JFET Drive", controlspec = controlspec.new(0.1, 5.0, 'lin', 0.01, 1.5), action = function(x) engine.m7_jfet(x) end}
     params:add{type = "option", id = "m7_cv2_mode", name = "CV2 Mode", options = {"NORM", "KEYB"}, default = 1, action = function(x) engine.m7_cv2_mode(x - 1) end}
-    params:add{type = "trigger", id = "m7_ping", name = "Manual Ping", action = function() engine.m7_ping() end}
 
-    params:add_group("MOD 8: NEXUS", 14)
+    params:add_group("MOD 8: NEXUS", 16)
+    params:add{type = "control", id = "m8_master_vol", name = "Master Volume", controlspec = controlspec.new(-60.0, 12.0, 'lin', 0.5, 0.0, "dB"), action = function(x) engine.m8_master_vol(math.pow(10, x / 20)) end}
     params:add{type = "control", id = "m8_cut_l", name = "Master Cutoff L", controlspec = controlspec.new(20.0, 18000.0, 'exp', 0.01, 18000.0, "Hz"), action = function(x) engine.m8_cut_l(x) end}
     params:add{type = "control", id = "m8_cut_r", name = "Master Cutoff R", controlspec = controlspec.new(20.0, 18000.0, 'exp', 0.01, 18000.0, "Hz"), action = function(x) engine.m8_cut_r(x) end}
     params:add{type = "control", id = "m8_res", name = "Master Resonance", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.0), action = function(x) engine.m8_res(x) end}
@@ -102,7 +102,6 @@ function Params.init(G)
     params:add{type = "control", id = "m8_tape_mix", name = "Tape Dry/Wet", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.2), action = function(x) engine.m8_tape_mix(x) end}
     params:add{type = "control", id = "m8_wow", name = "Tape Wow/Flutter", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.1), action = function(x) engine.set_tape_physics("wow", x); engine.set_tape_physics("flutter", x * 0.5) end}
     params:add{type = "control", id = "m8_erosion", name = "Tape Erosion", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.0), action = function(x) engine.m8_erosion(x) end}
-    params:add{type = "control", id = "m8_drive", name = "Input Drive", controlspec = controlspec.new(0.1, 5.0, 'lin', 0.01, 1.0), action = function(x) engine.m8_drive(x) end}
     params:add{type = "option", id = "m8_filt_byp", name = "Nexus Filt Bypass", options = {"ON", "BYPASS"}, default = 1, action = function(x) engine.m8_filt_byp(x - 1) end}
     params:add{type = "option", id = "m8_adc_mon", name = "Nexus ADC Mon", options = {"OFF", "ON"}, default = 1, action = function(x) engine.m8_adc_mon(x - 1) end}
     params:add{type = "option", id = "m8_tape_sat", name = "Nexus Tape Sat", options = {"CLEAN", "PUSHED", "CRUSHED"}, default = 1, action = function(x) 
@@ -110,11 +109,12 @@ function Params.init(G)
         engine.m8_drive(drive)
     end}
     params:add{type = "option", id = "m8_tape_mute", name = "Nexus Tape Mute", options = {"PLAY", "MUTE"}, default = 1, action = function(x) engine.m8_tape_mute(x - 1) end}
-    params:add{type = "control", id = "m8_master_vol", name = "Master Volume", controlspec = controlspec.new(-60.0, 12.0, 'lin', 0.5, 0.0, "dB"), action = function(x) engine.m8_master_vol(math.pow(10, x / 20)) end}
+    params:add{type = "option", id = "m8_cv_dest_l", name = "CV L Dest", options = {"VCA", "PAN"}, default = 1, action = function(x) engine.m8_cv_dest_l(x - 1) end}
+    params:add{type = "option", id = "m8_cv_dest_r", name = "CV R Dest", options = {"VCA", "PAN"}, default = 1, action = function(x) engine.m8_cv_dest_r(x - 1) end}
 
     for i = 1, 64 do
         local p_id = "node_lvl_" .. i
-        params:add{type = "control", id = p_id, name = "Node " .. i .. " Level", controlspec = controlspec.new(-1.0, 1.0, 'lin', 0.01, 0.5)}
+        params:add{type = "control", id = p_id, name = "Node " .. i .. " Level", controlspec = controlspec.new(-1.0, 1.0, 'lin', 0.01, 0.33)}
         params:hide(p_id)
         
         if i >= 55 and i <= 58 then
