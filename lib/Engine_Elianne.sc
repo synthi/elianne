@@ -1,4 +1,4 @@
-// lib/Engine_Elianne.sc v0.301
+// lib/Engine_Elianne.sc v0.303
 // CHANGELOG v0.300:
 // 1. ARCHITECTURE: Matriz expandida a 69x64 (Asimétrica).
 // 2. DSP: Añadido SynthDef(\Elianne_MIDI_CV) para inyectar voltajes MIDI suavizados.
@@ -575,6 +575,8 @@ Engine_Elianne : CroneEngine {
             \lvl_oml, bus_levels.index+58, \lvl_omr, bus_levels.index+59, \lvl_otl, bus_levels.index+60, \lvl_otr, bus_levels.index+61,
             \phys_bus, bus_physics.index
         ], context.xg, \addToTail);
+
+        context.server.sync; // <--- ESTA ES LA LÍNEA QUE SALVA EL AUDIO
 
         // =====================================================================
         // COMANDOS OSC (LUA -> SC)
