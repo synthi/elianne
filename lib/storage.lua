@@ -1,5 +1,5 @@
--- lib/storage.lua v0.3
--- CHANGELOG v0.3:
+-- lib/storage.lua v0.100
+-- CHANGELOG v0.100
 -- 1. FIX: Adaptación a la arquitectura de Deltas (patch_set) para carga escalonada.
 
 local Storage = {}
@@ -35,16 +35,11 @@ function Storage.load(G, pset_number)
         if data and data.patch then
             G.patch = data.patch
             
+            local Matrix = include('lib/matrix')
             clock.run(function()
-                for src_id = 1, 64 do
-                    for dst_id = 1, 64 do
-                        if G.patch[src_id] and G.patch[src_id][dst_id] and G.patch[src_id][dst_id].active then
-                            engine.patch_set(dst_id, src_id, 1.0)
-                            clock.sleep(0.005) -- Respiro microscópico para evitar UDP Flood
-                        end
-                    end
-                end
-                print("ELIANNE: Matriz DSP restaurada (Total Recall).")
+                -- Usar Matrix.init para garantizar la purga de cables fantasma y el Dynamic Pausing
+                Matrix.init(G)
+                print("ELIANNE: Matriz DSP restaurada y purgada (Total Recall).")
                 G.screen_dirty = true
             end)
         end
