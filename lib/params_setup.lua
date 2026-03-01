@@ -1,6 +1,7 @@
--- lib/params_setup.lua v0.102
--- CHANGELOG v0.102:
--- 1. FIX: Límite superior de los filtros 1006 del Nexus ajustado a 18000Hz.
+-- lib/params_setup.lua v0.103
+-- CHANGELOG v0.103:
+-- 1. FIX: Eliminados m6_range y m7_range (Alucinación histórica del 1047).
+-- 2. FEATURE: Añadidos m3_fm1_mode y m3_fm2_mode para el 1023 (FM vs Morph CV).
 
 local Params = {}
 
@@ -30,17 +31,19 @@ function Params.init(G)
     params:add{type = "control", id = "m2_mix_pulse", name = "Mix Pulse", controlspec = controlspec.new(-1.0, 1.0, 'lin', 0.01, 0.0), action = function(x) engine.m2_mix_pulse(x) end}
     params:add{type = "option", id = "m2_range", name = "Range", options = {"HI", "LO"}, default = 1, action = function(x) engine.m2_range(x - 1) end}
 
-    params:add_group("MOD 3: 1023 DUAL VCO", 10)
+    params:add_group("MOD 3: 1023 DUAL VCO", 12)
     params:add{type = "control", id = "m3_tune1", name = "Osc 1 Tune", controlspec = controlspec.new(0.01, 16000.0, 'exp', 0.001, 100.0, "Hz"), action = function(x) engine.m3_tune1(x) end}
     params:add{type = "control", id = "m3_pwm1", name = "Osc 1 PWM", controlspec = controlspec.new(0.05, 0.95, 'lin', 0.01, 0.5), action = function(x) engine.m3_pwm1(x) end}
     params:add{type = "control", id = "m3_morph1", name = "Osc 1 Morph", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.001, 0.0), action = function(x) engine.m3_morph1(x) end}
     params:add{type = "option", id = "m3_range1", name = "Osc 1 Range", options = {"HI", "LO"}, default = 1, action = function(x) engine.m3_range1(x - 1) end}
     params:add{type = "option", id = "m3_pv1_mode", name = "Osc 1 PV Dest", options = {"PWM", "VOCT"}, default = 1, action = function(x) engine.m3_pv1_mode(x - 1) end}
+    params:add{type = "option", id = "m3_fm1_mode", name = "Osc 1 FM Dest", options = {"FM", "MORPH"}, default = 1, action = function(x) engine.m3_fm1_mode(x - 1) end}
     params:add{type = "control", id = "m3_tune2", name = "Osc 2 Tune", controlspec = controlspec.new(0.01, 16000.0, 'exp', 0.001, 101.0, "Hz"), action = function(x) engine.m3_tune2(x) end}
     params:add{type = "control", id = "m3_pwm2", name = "Osc 2 PWM", controlspec = controlspec.new(0.05, 0.95, 'lin', 0.01, 0.5), action = function(x) engine.m3_pwm2(x) end}
     params:add{type = "control", id = "m3_morph2", name = "Osc 2 Morph", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.001, 0.0), action = function(x) engine.m3_morph2(x) end}
     params:add{type = "option", id = "m3_range2", name = "Osc 2 Range", options = {"HI", "LO"}, default = 1, action = function(x) engine.m3_range2(x - 1) end}
     params:add{type = "option", id = "m3_pv2_mode", name = "Osc 2 PV Dest", options = {"PWM", "VOCT"}, default = 1, action = function(x) engine.m3_pv2_mode(x - 1) end}
+    params:add{type = "option", id = "m3_fm2_mode", name = "Osc 2 FM Dest", options = {"FM", "MORPH"}, default = 1, action = function(x) engine.m3_fm2_mode(x - 1) end}
 
     params:add_group("MOD 4: 1016/36 NOISE", 10)
     params:add{type = "control", id = "m4_slow_rate", name = "Slow Rand Rate", controlspec = controlspec.new(0.01, 10.0, 'exp', 0.01, 0.1, "Hz"), action = function(x) engine.m4_slow_rate(x) end}
@@ -66,7 +69,7 @@ function Params.init(G)
     params:add{type = "option", id = "m5_state", name = "1005 State", options = {"UNMOD", "MOD"}, default = 1, action = function(x) engine.m5_state_mode(x - 1) end}
     params:add{type = "control", id = "m5_gate_thresh", name = "Gate Threshold", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.5), action = function(x) engine.m5_gate_thresh(x) end}
 
-    params:add_group("MOD 6: 1047 (A)", 10)
+    params:add_group("MOD 6: 1047 (A)", 9)
     params:add{type = "control", id = "m6_cutoff", name = "Cutoff", controlspec = controlspec.new(10.0, 18000.0, 'exp', 0.01, 1000.0, "Hz"), action = function(x) engine.m6_cutoff(x) end}
     params:add{type = "control", id = "m6_fine", name = "Cutoff Fine", controlspec = controlspec.new(-5.0, 5.0, 'lin', 0.001, 0.0, "Hz"), action = function(x) engine.m6_fine(x) end}
     params:add{type = "control", id = "m6_q", name = "Resonance (Q)", controlspec = controlspec.new(0.1, 500.0, 'exp', 0.1, 1.0), action = function(x) engine.m6_q(x) end}
@@ -78,7 +81,7 @@ function Params.init(G)
     params:add{type = "option", id = "m6_cv2_mode", name = "CV2 Mode", options = {"NORM", "KEYB"}, default = 1, action = function(x) engine.m6_cv2_mode(x - 1) end}
     params:add{type = "trigger", id = "m6_ping", name = "Manual Ping", action = function() engine.m6_ping() end}
 
-    params:add_group("MOD 7: 1047 (B)", 10)
+    params:add_group("MOD 7: 1047 (B)", 9)
     params:add{type = "control", id = "m7_cutoff", name = "Cutoff", controlspec = controlspec.new(10.0, 18000.0, 'exp', 0.01, 1000.0, "Hz"), action = function(x) engine.m7_cutoff(x) end}
     params:add{type = "control", id = "m7_fine", name = "Cutoff Fine", controlspec = controlspec.new(-5.0, 5.0, 'lin', 0.001, 0.0, "Hz"), action = function(x) engine.m7_fine(x) end}
     params:add{type = "control", id = "m7_q", name = "Resonance (Q)", controlspec = controlspec.new(0.1, 500.0, 'exp', 0.1, 1.0), action = function(x) engine.m7_q(x) end}
