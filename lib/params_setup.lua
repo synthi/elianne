@@ -1,7 +1,7 @@
--- lib/params_setup.lua v0.201
--- CHANGELOG v0.200:
--- 1. FEATURE: Añadido Morph Time (0 a 120s) en GLOBAL PHYSICS.
--- 2. FEATURE: Añadidos m8_cv_dest_l y m8_cv_dest_r para el Nexus.
+-- lib/params_setup.lua v0.300
+-- CHANGELOG v0.300:
+-- 1. FEATURE: Añadidos parámetros para los 4 Nodos MIDI y el Nodo Clock.
+-- 2. FEATURE: Añadida carpeta MIDI ROUTING para el Voice Allocator.
 
 local Params = {}
 
@@ -11,6 +11,10 @@ function Params.init(G)
     params:add_group("GLOBAL PHYSICS", 2)
     params:add{type = "control", id = "thermal_drift", name = "System Age", controlspec = controlspec.new(0.0, 0.1, 'lin', 0.001, 0.01), action = function(x) engine.set_global_physics("thermal", x) end}
     params:add{type = "control", id = "morph_time", name = "Morph Time", controlspec = controlspec.new(0.0, 120.0, 'lin', 0.1, 1.0, "s")}
+
+    params:add_group("MIDI ROUTING", 2)
+    params:add{type = "number", id = "midi_device", name = "MIDI Device", min = 1, max = 4, default = 1}
+    params:add{type = "option", id = "midi_poly_mode", name = "Polyphony Mode", options = {"ROTATE", "RESET"}, default = 1}
 
     params:add_group("MOD 1: 1004-P (A)", 8)
     params:add{type = "control", id = "m1_tune", name = "Tune", controlspec = controlspec.new(10.0, 16000.0, 'exp', 0.001, 100.0, "Hz"), action = function(x) engine.m1_tune(x) end}
@@ -112,7 +116,26 @@ function Params.init(G)
     params:add{type = "option", id = "m8_cv_dest_l", name = "CV L Dest", options = {"VCA", "PAN"}, default = 1, action = function(x) engine.m8_cv_dest_l(x - 1) end}
     params:add{type = "option", id = "m8_cv_dest_r", name = "CV R Dest", options = {"VCA", "PAN"}, default = 1, action = function(x) engine.m8_cv_dest_r(x - 1) end}
 
-    for i = 1, 64 do
+    -- PARÁMETROS OCULTOS PARA NODOS MIDI Y CLOCK
+    for i = 1, 4 do
+        params:add{type = "number", id = "midi_ch_"..i, name = "MIDI Ch "..i, min = 0, max = 16, default = 0} -- 0 = ALL
+        params:add{type = "option", id = "midi_mode_"..i, name = "MIDI Mode "..i, options = {"PITCH", "GATE", "CC"}, default = 1}
+        params:add{type = "option", id = "midi_pol_"..i, name = "MIDI Polarity "..i, options = {"UNI", "BI"}, default = 1}
+        params:add{type = "number", id = "midi_cc_"..i, name = "MIDI CC "..i, min = 0, max = 127, default = 1}
+        params:add{type = "number", id = "midi_oct_"..i, name = "MIDI Octave "..i, min = -3, max = 3, default = 0}
+        params:hide("midi_ch_"..i); params:hide("midi_mode_"..i); params:hide("midi_pol_"..i); params:hide("midi_cc_"..i); params:hide("midi_oct_"..i)
+    end
+
+    params:add{type = "option", id = "clk_mode", name = "Clock Mode", options = {"BPM", "FREE"}, default = 1, action = function(x) engine.set_clock_mode(x - 1) end}
+    params:add{type = "number", id = "clk_div", name = "Clock Div/Mult", min = 1, max = 9, default = 5, action = function(x) 
+        local mults = {0.0625, 0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0}
+        engine.set_clock_div(mults[x])
+    end}
+    params:add{type = "control", id = "clk_hz", name = "Clock Hz", controlspec = controlspec.new(0.01, 100.0, 'exp', 0.01, 1.0, "Hz"), action = function(x) engine.set_clock_hz(x) end}
+    params:add{type = "control", id = "clk_jitter", name = "Clock Jitter", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.0), action = function(x) engine.set_clock_jitter(x) end}
+    params:hide("clk_mode"); params:hide("clk_div"); params:hide("clk_hz"); params:hide("clk_jitter")
+
+    for i = 1, 69 do
         local p_id = "node_lvl_" .. i
         params:add{type = "control", id = p_id, name = "Node " .. i .. " Level", controlspec = controlspec.new(-1.0, 1.0, 'lin', 0.01, 0.33)}
         params:hide(p_id)
