@@ -1,7 +1,7 @@
--- lib/params_setup.lua v0.103
--- CHANGELOG v0.103:
--- 1. FIX: Eliminados m6_range y m7_range (Alucinación histórica del 1047).
--- 2. FEATURE: Añadidos m3_fm1_mode y m3_fm2_mode para el 1023 (FM vs Morph CV).
+-- lib/params_setup.lua v0.104
+-- CHANGELOG v0.104:
+-- 1. FIX: Rango PWM expandido a 0.0 - 1.0.
+-- 2. FIX: Resolución de Notch Freq aumentada a 0.001.
 
 local Params = {}
 
@@ -14,7 +14,7 @@ function Params.init(G)
     params:add_group("MOD 1: 1004-P (A)", 8)
     params:add{type = "control", id = "m1_tune", name = "Tune", controlspec = controlspec.new(10.0, 16000.0, 'exp', 0.001, 100.0, "Hz"), action = function(x) engine.m1_tune(x) end}
     params:add{type = "control", id = "m1_fine", name = "Fine Tune", controlspec = controlspec.new(-2.0, 2.0, 'lin', 0.001, 0.0, "Hz"), action = function(x) engine.m1_fine(x) end}
-    params:add{type = "control", id = "m1_pwm", name = "PWM Base", controlspec = controlspec.new(0.05, 0.95, 'lin', 0.01, 0.5), action = function(x) engine.m1_pwm(x) end}
+    params:add{type = "control", id = "m1_pwm", name = "PWM Base", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.5), action = function(x) engine.m1_pwm(x) end}
     params:add{type = "control", id = "m1_mix_sine", name = "Mix Sine", controlspec = controlspec.new(-1.0, 1.0, 'lin', 0.01, 1.0), action = function(x) engine.m1_mix_sine(x) end}
     params:add{type = "control", id = "m1_mix_tri", name = "Mix Tri", controlspec = controlspec.new(-1.0, 1.0, 'lin', 0.01, 0.0), action = function(x) engine.m1_mix_tri(x) end}
     params:add{type = "control", id = "m1_mix_saw", name = "Mix Saw", controlspec = controlspec.new(-1.0, 1.0, 'lin', 0.01, 0.0), action = function(x) engine.m1_mix_saw(x) end}
@@ -24,7 +24,7 @@ function Params.init(G)
     params:add_group("MOD 2: 1004-P (B)", 8)
     params:add{type = "control", id = "m2_tune", name = "Tune", controlspec = controlspec.new(10.0, 16000.0, 'exp', 0.001, 100.0, "Hz"), action = function(x) engine.m2_tune(x) end}
     params:add{type = "control", id = "m2_fine", name = "Fine Tune", controlspec = controlspec.new(-2.0, 2.0, 'lin', 0.001, 0.0, "Hz"), action = function(x) engine.m2_fine(x) end}
-    params:add{type = "control", id = "m2_pwm", name = "PWM Base", controlspec = controlspec.new(0.05, 0.95, 'lin', 0.01, 0.5), action = function(x) engine.m2_pwm(x) end}
+    params:add{type = "control", id = "m2_pwm", name = "PWM Base", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.5), action = function(x) engine.m2_pwm(x) end}
     params:add{type = "control", id = "m2_mix_sine", name = "Mix Sine", controlspec = controlspec.new(-1.0, 1.0, 'lin', 0.01, 1.0), action = function(x) engine.m2_mix_sine(x) end}
     params:add{type = "control", id = "m2_mix_tri", name = "Mix Tri", controlspec = controlspec.new(-1.0, 1.0, 'lin', 0.01, 0.0), action = function(x) engine.m2_mix_tri(x) end}
     params:add{type = "control", id = "m2_mix_saw", name = "Mix Saw", controlspec = controlspec.new(-1.0, 1.0, 'lin', 0.01, 0.0), action = function(x) engine.m2_mix_saw(x) end}
@@ -33,13 +33,13 @@ function Params.init(G)
 
     params:add_group("MOD 3: 1023 DUAL VCO", 12)
     params:add{type = "control", id = "m3_tune1", name = "Osc 1 Tune", controlspec = controlspec.new(0.01, 16000.0, 'exp', 0.001, 100.0, "Hz"), action = function(x) engine.m3_tune1(x) end}
-    params:add{type = "control", id = "m3_pwm1", name = "Osc 1 PWM", controlspec = controlspec.new(0.05, 0.95, 'lin', 0.01, 0.5), action = function(x) engine.m3_pwm1(x) end}
+    params:add{type = "control", id = "m3_pwm1", name = "Osc 1 PWM", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.5), action = function(x) engine.m3_pwm1(x) end}
     params:add{type = "control", id = "m3_morph1", name = "Osc 1 Morph", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.001, 0.0), action = function(x) engine.m3_morph1(x) end}
     params:add{type = "option", id = "m3_range1", name = "Osc 1 Range", options = {"HI", "LO"}, default = 1, action = function(x) engine.m3_range1(x - 1) end}
     params:add{type = "option", id = "m3_pv1_mode", name = "Osc 1 PV Dest", options = {"PWM", "VOCT"}, default = 1, action = function(x) engine.m3_pv1_mode(x - 1) end}
     params:add{type = "option", id = "m3_fm1_mode", name = "Osc 1 FM Dest", options = {"FM", "MORPH"}, default = 1, action = function(x) engine.m3_fm1_mode(x - 1) end}
     params:add{type = "control", id = "m3_tune2", name = "Osc 2 Tune", controlspec = controlspec.new(0.01, 16000.0, 'exp', 0.001, 101.0, "Hz"), action = function(x) engine.m3_tune2(x) end}
-    params:add{type = "control", id = "m3_pwm2", name = "Osc 2 PWM", controlspec = controlspec.new(0.05, 0.95, 'lin', 0.01, 0.5), action = function(x) engine.m3_pwm2(x) end}
+    params:add{type = "control", id = "m3_pwm2", name = "Osc 2 PWM", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.5), action = function(x) engine.m3_pwm2(x) end}
     params:add{type = "control", id = "m3_morph2", name = "Osc 2 Morph", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.001, 0.0), action = function(x) engine.m3_morph2(x) end}
     params:add{type = "option", id = "m3_range2", name = "Osc 2 Range", options = {"HI", "LO"}, default = 1, action = function(x) engine.m3_range2(x - 1) end}
     params:add{type = "option", id = "m3_pv2_mode", name = "Osc 2 PV Dest", options = {"PWM", "VOCT"}, default = 1, action = function(x) engine.m3_pv2_mode(x - 1) end}
@@ -73,7 +73,7 @@ function Params.init(G)
     params:add{type = "control", id = "m6_cutoff", name = "Cutoff", controlspec = controlspec.new(10.0, 18000.0, 'exp', 0.01, 1000.0, "Hz"), action = function(x) engine.m6_cutoff(x) end}
     params:add{type = "control", id = "m6_fine", name = "Cutoff Fine", controlspec = controlspec.new(-5.0, 5.0, 'lin', 0.001, 0.0, "Hz"), action = function(x) engine.m6_fine(x) end}
     params:add{type = "control", id = "m6_q", name = "Resonance (Q)", controlspec = controlspec.new(0.1, 500.0, 'exp', 0.1, 1.0), action = function(x) engine.m6_q(x) end}
-    params:add{type = "control", id = "m6_notch", name = "Notch Offset", controlspec = controlspec.new(-1.0, 1.0, 'lin', 0.01, 0.0), action = function(x) engine.m6_notch(x) end}
+    params:add{type = "control", id = "m6_notch", name = "Notch Offset", controlspec = controlspec.new(-1.0, 1.0, 'lin', 0.001, 0.0), action = function(x) engine.m6_notch(x) end}
     params:add{type = "control", id = "m6_final_q", name = "Perc Final Q", controlspec = controlspec.new(0.1, 100.0, 'exp', 0.1, 2.0), action = function(x) engine.m6_final_q(x) end}
     params:add{type = "control", id = "m6_out_lvl", name = "Output Level", controlspec = controlspec.new(0.0, 2.0, 'lin', 0.01, 1.0), action = function(x) engine.m6_out_lvl(x) end}
     params:add{type = "control", id = "m6_p_shift", name = "Perc Pitch Shift", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.1), action = function(x) engine.set_global_physics("p_shift", x) end}
@@ -85,7 +85,7 @@ function Params.init(G)
     params:add{type = "control", id = "m7_cutoff", name = "Cutoff", controlspec = controlspec.new(10.0, 18000.0, 'exp', 0.01, 1000.0, "Hz"), action = function(x) engine.m7_cutoff(x) end}
     params:add{type = "control", id = "m7_fine", name = "Cutoff Fine", controlspec = controlspec.new(-5.0, 5.0, 'lin', 0.001, 0.0, "Hz"), action = function(x) engine.m7_fine(x) end}
     params:add{type = "control", id = "m7_q", name = "Resonance (Q)", controlspec = controlspec.new(0.1, 500.0, 'exp', 0.1, 1.0), action = function(x) engine.m7_q(x) end}
-    params:add{type = "control", id = "m7_notch", name = "Notch Offset", controlspec = controlspec.new(-1.0, 1.0, 'lin', 0.01, 0.0), action = function(x) engine.m7_notch(x) end}
+    params:add{type = "control", id = "m7_notch", name = "Notch Offset", controlspec = controlspec.new(-1.0, 1.0, 'lin', 0.001, 0.0), action = function(x) engine.m7_notch(x) end}
     params:add{type = "control", id = "m7_final_q", name = "Perc Final Q", controlspec = controlspec.new(0.1, 100.0, 'exp', 0.1, 2.0), action = function(x) engine.m7_final_q(x) end}
     params:add{type = "control", id = "m7_out_lvl", name = "Output Level", controlspec = controlspec.new(0.0, 2.0, 'lin', 0.01, 1.0), action = function(x) engine.m7_out_lvl(x) end}
     params:add{type = "control", id = "m7_p_shift", name = "Perc Pitch Shift", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.1), action = function(x) engine.set_global_physics("p_shift", x) end}
