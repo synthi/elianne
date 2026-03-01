@@ -1,7 +1,6 @@
--- lib/grid_ui.lua v0.200
--- CHANGELOG v0.200:
--- 1. FEATURE: Botón SHIFT (X=1, Y=8) y lógica de "Desconectar Todo" (Shift + Hold > 1s).
--- 2. FEATURE: Máquina de estados visual y lógica para 6 Snapshots (X=3 a 8, Y=8).
+-- lib/grid_ui.lua v0.201
+-- CHANGELOG v0.201:
+-- 1. FIX: Nodos ADC (x=15, x=16, y=8) ahora se dibujan y funcionan correctamente.
 
 local GridUI = {}
 
@@ -29,21 +28,18 @@ function GridUI.key(G, g, x, y, z)
         GridUI.key_times[key_id] = now
     end
 
-    -- LÓGICA DEL BOTÓN SHIFT
     if x == 1 and y == 8 then
         G.shift_held = (z == 1)
         G.screen_dirty = true
         return
     end
 
-    -- LÓGICA DE SNAPSHOTS
     if y == 8 and x >= 3 and x <= 8 then
         if z == 1 then
             local snap_id = x - 2
             local Storage = include('lib/storage')
             
             if G.shift_held then
-                -- BORRAR
                 if G.snapshots[snap_id].has_data then
                     G.snapshots[snap_id].has_data = false
                     G.snapshots[snap_id].patch = nil
@@ -53,10 +49,8 @@ function GridUI.key(G, g, x, y, z)
                 end
             else
                 if not G.snapshots[snap_id].has_data or G.active_snap == snap_id then
-                    -- GUARDAR / SOBREESCRIBIR
                     Storage.save_snapshot(G, snap_id)
                 else
-                    -- CARGAR (MORPH)
                     Storage.load_snapshot(G, snap_id)
                 end
             end
@@ -82,7 +76,6 @@ function GridUI.key(G, g, x, y, z)
             G.focus.node_x = x
             G.focus.node_y = y
             
-            -- LÓGICA "DESCONECTAR TODO" (SHIFT + HOLD)
             if G.shift_held then
                 GridUI.disconnect_timer = clock.run(function()
                     clock.sleep(1.0)
@@ -109,7 +102,6 @@ function GridUI.key(G, g, x, y, z)
                     G.screen_dirty = true
                     GridUI.disconnect_timer = nil
                 end)
-            -- LÓGICA DE PARCHEO NORMAL
             elseif #GridUI.held_nodes == 2 then
                 local n1 = GridUI.held_nodes[1].node
                 local n2 = GridUI.held_nodes[2].node
@@ -172,8 +164,7 @@ function GridUI.redraw(G, g)
         for y = 1, 8 do
             local b = 0
             
-            -- DIBUJO FILA 8 (SHIFT Y SNAPSHOTS)
-            if y == 8 then
+            if y == 8 and x <= 14 then
                 if x == 1 then
                     b = G.shift_held and 15 or 8
                 elseif x >= 3 and x <= 8 then
@@ -187,7 +178,6 @@ function GridUI.redraw(G, g)
                     end
                 end
             else
-                -- DIBUJO NODOS NORMALES
                 local module_idx = math.ceil(x / 2)
                 local is_even_module = (module_idx % 2 == 0)
                 local node = G.grid_map[x][y]
