@@ -1,8 +1,8 @@
-// lib/Engine_Elianne.sc v0.200
-// CHANGELOG v0.200:
-// 1. TOPOLOGÍA: Nodos 63/64 inyectan SoundIn (ADC) a la matriz.
-// 2. TOPOLOGÍA: Nodos 57/58 actúan como CV In para el Nexus (VCA o PAN).
-// 3. DSP: Ganancia de compensación inyectada en el 1005.
+// lib/Engine_Elianne.sc v0.300
+// CHANGELOG v0.300:
+// 1. ARCHITECTURE: Matriz expandida a 69x64 (Asimétrica).
+// 2. DSP: Añadido SynthDef(\Elianne_MIDI_CV) para inyectar voltajes MIDI suavizados.
+// 3. DSP: Añadido SynthDef(\Elianne_Clock) con modos BPM/Free y Ping Jitter.
 
 Engine_Elianne : CroneEngine {
     var <bus_nodes_tx;
@@ -15,6 +15,8 @@ Engine_Elianne : CroneEngine {
     var <synth_matrix_rows;
     var <synth_mods;
     var <synth_adc;
+    var <synth_midi;
+    var <synth_clock;
     var matrix_state;
     
     *new { arg context, doneCallback;
@@ -22,17 +24,17 @@ Engine_Elianne : CroneEngine {
     }
 
     alloc {
-        bus_nodes_tx = Bus.audio(context.server, 64);
-        bus_nodes_rx = Bus.audio(context.server, 64);
-        bus_levels = Bus.control(context.server, 64);
+        bus_nodes_tx = Bus.audio(context.server, 69); // 69 TX
+        bus_nodes_rx = Bus.audio(context.server, 64); // 64 RX
+        bus_levels = Bus.control(context.server, 69);
         bus_pans = Bus.control(context.server, 64);
         bus_physics = Bus.control(context.server, 10);
         
-        64.do { |i| bus_levels.setAt(i, 0.33) };
+        69.do { |i| bus_levels.setAt(i, 0.33) };
         
         synth_mods = Array.newClear(8);
         synth_matrix_rows = Array.newClear(64);
-        matrix_state = Array.fill(64, { Array.fill(64, 0.0) });
+        matrix_state = Array.fill(64, { Array.fill(69, 0.0) });
 
         context.server.sync;
 
@@ -41,17 +43,17 @@ Engine_Elianne : CroneEngine {
         }, '/elianne_levels', context.server.addr).fix;
 
         // =====================================================================
-        // SYNTH 0A & 0B: MATRIZ
+        // SYNTH 0A & 0B: MATRIZ ASIMÉTRICA (69x64)
         // =====================================================================
         SynthDef(\Elianne_MatrixAmps, {
-            var tx = InFeedback.ar(bus_nodes_tx.index, 64);
+            var tx = InFeedback.ar(bus_nodes_tx.index, 69);
             var amps = Amplitude.kr(tx, 0.05, 0.1);
             SendReply.kr(Impulse.kr(15), '/elianne_levels', amps);
         }).add;
 
         SynthDef(\Elianne_MatrixRow, { arg out_bus;
-            var tx = InFeedback.ar(bus_nodes_tx.index, 64);
-            var gains = NamedControl.kr(\gains, 0 ! 64);
+            var tx = InFeedback.ar(bus_nodes_tx.index, 69);
+            var gains = NamedControl.kr(\gains, 0 ! 69);
             var sum = (tx * gains).sum;
             Out.ar(out_bus, sum);
         }).add;
@@ -64,6 +66,28 @@ Engine_Elianne : CroneEngine {
             var adc = SoundIn.ar([0, 1]);
             Out.ar(out_l, adc[0] * In.kr(lvl_l));
             Out.ar(out_r, adc[1] * In.kr(lvl_r));
+        }).add;
+
+        // =====================================================================
+        // SYNTH MIDI CV (Nodos 65 a 68)
+        // =====================================================================
+        SynthDef(\Elianne_MIDI_CV, {
+            arg out_bus, lvl_bus, val=0.0;
+            var sig = K2A.ar(Lag.kr(val, 0.01)); // Lag para evitar zipper noise en CCs
+            Out.ar(out_bus, sig * In.kr(lvl_bus));
+        }).add;
+
+        // =====================================================================
+        // SYNTH CLOCK (Nodo 69)
+        // =====================================================================
+        SynthDef(\Elianne_Clock, {
+            arg out_bus, lvl_bus, mode=0, bpm=120, div_mult=1.0, free_hz=1.0, jitter=0.0;
+            var rate_bpm = (bpm / 60.0) * div_mult;
+            var rate_free = free_hz;
+            var rate = Select.kr(mode, [rate_bpm, rate_free]);
+            var mod_rate = rate * (1.0 + (LFNoise2.kr(rate) * jitter * 1.5)).clip(0.1, 40);
+            var sig = Impulse.ar(mod_rate);
+            Out.ar(out_bus, sig * In.kr(lvl_bus));
         }).add;
 
         // =====================================================================
@@ -457,7 +481,7 @@ Engine_Elianne : CroneEngine {
 
         context.server.sync;
 
-        // =====================================================================
+         // =====================================================================
         // INSTANCIACIÓN DE NODOS
         // =====================================================================
         
@@ -469,6 +493,19 @@ Engine_Elianne : CroneEngine {
         synth_adc = Synth.new(\Elianne_ADC,[
             \out_l, bus_nodes_tx.index+62, \out_r, bus_nodes_tx.index+63,
             \lvl_l, bus_levels.index+62, \lvl_r, bus_levels.index+63
+        ], context.xg, \addToHead);
+
+        synth_midi = Array.newClear(4);
+        4.do { |i|
+            synth_midi[i] = Synth.new(\Elianne_MIDI_CV,[
+                \out_bus, bus_nodes_tx.index + 64 + i,
+                \lvl_bus, bus_levels.index + 64 + i
+            ], context.xg, \addToHead);
+        };
+
+        synth_clock = Synth.new(\Elianne_Clock,[
+            \out_bus, bus_nodes_tx.index+68,
+            \lvl_bus, bus_levels.index+68
         ], context.xg, \addToHead);
         
         synth_mods[0] = Synth.new(\Elianne_1004T,[
@@ -555,6 +592,14 @@ Engine_Elianne : CroneEngine {
         this.addCommand("set_in_level", "if", { |msg| bus_levels.setAt(msg[1] - 1, msg[2]) });
         this.addCommand("set_out_level", "if", { |msg| bus_levels.setAt(msg[1] - 1, msg[2]) });
         this.addCommand("set_in_pan", "if", { |msg| bus_pans.setAt(msg[1] - 1, msg[2]) });
+        
+        // Comandos MIDI y Clock
+        this.addCommand("set_midi_val", "if", { |msg| synth_midi[msg[1] - 1].set(\val, msg[2]) });
+        this.addCommand("set_clock_mode", "i", { |msg| synth_clock.set(\mode, msg[1]) });
+        this.addCommand("set_clock_bpm", "f", { |msg| synth_clock.set(\bpm, msg[1]) });
+        this.addCommand("set_clock_div", "f", { |msg| synth_clock.set(\div_mult, msg[1]) });
+        this.addCommand("set_clock_hz", "f", { |msg| synth_clock.set(\free_hz, msg[1]) });
+        this.addCommand("set_clock_jitter", "f", { |msg| synth_clock.set(\jitter, msg[1]) });
         
         this.addCommand("set_global_physics", "sf", { |msg|
             var idx = switch(msg[1].asString, "thermal", 0, "droop", 1, "c_bleed", 2, "m_bleed", 3, "p_shift", 4);
@@ -664,6 +709,8 @@ Engine_Elianne : CroneEngine {
         synth_matrix_rows.do({ |s| if(s.notNil, { s.free }) });
         synth_mods.do({ |s| if(s.notNil, { s.free }) });
         synth_adc.free;
+        synth_midi.do({ |s| if(s.notNil, { s.free }) });
+        synth_clock.free;
         bus_nodes_tx.free;
         bus_nodes_rx.free;
         bus_levels.free;
