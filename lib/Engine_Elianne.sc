@@ -1,8 +1,6 @@
-// lib/Engine_Elianne.sc v0.205
-// CHANGELOG v0.203:
-// 1. PHYSICS: Slew Rate Limiting (Op-Amps) y Ebers-Moll Compression inyectados en CVs, vinculados a sys_age.
-// 2. PHYSICS: Compensación de ganancia (10V p-p) en salidas del 1016 (S&H/Noise).
-// 3. DSP: Búfer de cinta NEXUS expandido a 6s de delay + margen de Wow/Flutter.
+// lib/Engine_Elianne.sc v0.206
+// CHANGELOG v0.206:
+// 1. PHYSICS: Calibración de Gain Staging en el 1005. Make-up gain masivo para garantizar 10V p-p en salidas.
 
 Engine_Elianne : CroneEngine {
     var <bus_nodes_tx;
@@ -81,15 +79,13 @@ Engine_Elianne : CroneEngine {
             
             sys_age = In.kr(phys_bus + 0) * 10.0; 
             noise_floor = PinkNoise.ar(0.00056 + (sys_age * 0.001)); 
-            slew_time = 0.001 + (sys_age * 0.005); // Slew Rate Limiting (Op-Amps)
+            slew_time = 0.001 + (sys_age * 0.005); 
             
-            // CV Inputs con Slew Rate
             fm1 = Lag.ar(InFeedback.ar(in_fm1) * In.kr(lvl_fm1) + noise_floor, slew_time);
             fm2 = Lag.ar(InFeedback.ar(in_fm2) * In.kr(lvl_fm2) + noise_floor, slew_time);
             pwm_mod = Lag.ar(InFeedback.ar(in_pwm) * In.kr(lvl_pwm) + noise_floor, slew_time);
             voct = Lag.ar(InFeedback.ar(in_voct) * In.kr(lvl_voct) + noise_floor, slew_time); 
             
-            // Ebers-Moll Compression en V/Oct
             voct = voct * (1.0 - (voct.abs * 0.01 * (1.0 + sys_age)));
             
             fm1_lin = fm1 * 1000.0 * (1 - fm1_type); 
@@ -158,7 +154,7 @@ Engine_Elianne : CroneEngine {
             fm1_morph = fm1_in * fm1_mode * 5.0;
             
             pv1 = Lag.ar(InFeedback.ar(in_pv1) * In.kr(lvl_pv1) + noise_floor, slew_time); 
-            pv1 = pv1 * (1.0 - (pv1.abs * 0.01 * (1.0 + sys_age))); // Ebers-Moll
+            pv1 = pv1 * (1.0 - (pv1.abs * 0.01 * (1.0 + sys_age))); 
             voct1 = pv1 * pv1_mode * 5.0;
             pwm_mod1 = pv1 * (1 - pv1_mode);
             
@@ -182,7 +178,7 @@ Engine_Elianne : CroneEngine {
             fm2_morph = fm2_in * fm2_mode * 5.0;
             
             pv2 = Lag.ar(InFeedback.ar(in_pv2) * In.kr(lvl_pv2) + noise_floor, slew_time);
-            pv2 = pv2 * (1.0 - (pv2.abs * 0.01 * (1.0 + sys_age))); // Ebers-Moll
+            pv2 = pv2 * (1.0 - (pv2.abs * 0.01 * (1.0 + sys_age))); 
             voct2 = pv2 * pv2_mode * 5.0;
             pwm_mod2 = pv2 * (1 - pv2_mode);
             
@@ -258,7 +254,6 @@ Engine_Elianne : CroneEngine {
             slow_out = LFNoise2.ar(slow_rate);
             slow_out = slow_out.sign * (slow_out.abs ** (2.0 ** prob_skew.neg));
             
-            // Gain Staging 10V p-p: Compensación para golpear los rieles
             step_out = (step_out * 2.5).softclip;
             slow_out = (slow_out * 2.5).softclip;
             noise1 = (noise1 * 2.0).softclip;
@@ -271,7 +266,7 @@ Engine_Elianne : CroneEngine {
         }).add;
 
         // =====================================================================
-        // SYNTH 5: ARP 1005
+        // SYNTH 5: ARP 1005 (CALIBRADO A 10V P-P)
         // =====================================================================
         SynthDef(\Elianne_1005, {
             arg in_car, in_mod, in_vca, in_gate,
@@ -319,16 +314,19 @@ Engine_Elianne : CroneEngine {
             current_state = Select.ar(K2A.ar(state_mode),[state_flip, DC.ar(1), DC.ar(0)]);
             state_smooth = Lag.ar(current_state, xfade);
             
-            core_sig = XFade2.ar(car * unmod_gain * 1.1, rm_sig * mod_gain * 2.0, state_smooth * 2 - 1);
+            // MAKE-UP GAIN MASIVO: Compensación de pérdida de Ring Modulator
+            core_sig = XFade2.ar(car * unmod_gain * 1.2, rm_sig * mod_gain * 3.5, state_smooth * 2 - 1);
             
             vca_env = (vca_base + (vca_cv * 5.0)).clip(0, 1);
             vca_final = LinXFade2.ar(vca_env, vca_env.squared, vca_resp * 2 - 1);
-            final_sig = core_sig * vca_final;
+            
+            // Empuje final del VCA con limitador analógico
+            final_sig = (core_sig * vca_final * 1.5).softclip;
             
             Out.ar(out_main, final_sig * In.kr(lvl_main));
-            Out.ar(out_inv, (rm_sig * 2.0) * In.kr(lvl_inv)); 
-            Out.ar(out_sum, (sum_sig * 1.2) * In.kr(lvl_sum));
-            Out.ar(out_diff, (diff_sig * 1.2) * In.kr(lvl_diff));
+            Out.ar(out_inv, (rm_sig * 3.5).softclip * In.kr(lvl_inv)); 
+            Out.ar(out_sum, (sum_sig * 3.0).softclip * In.kr(lvl_sum));
+            Out.ar(out_diff, (diff_sig * 3.0).softclip * In.kr(lvl_diff));
         }).add;
 
         // =====================================================================
@@ -357,13 +355,11 @@ Engine_Elianne : CroneEngine {
             
             aud = sat.(InFeedback.ar(in_aud) * In.kr(lvl_aud) + noise_floor_aud);
             
-            // CVs con Slew Rate
             cv1 = Lag.ar(InFeedback.ar(in_cv1) * In.kr(lvl_cv1) + noise_floor_cv, slew_time);
             res_cv = Lag.ar(InFeedback.ar(in_res) * In.kr(lvl_res) + noise_floor_cv, slew_time);
             cv2 = Lag.ar(InFeedback.ar(in_cv2) * In.kr(lvl_cv2) + noise_floor_cv, slew_time); 
             p_shift = K2A.ar(In.kr(phys_bus + 4));
             
-            // Ebers-Moll Compression en FM
             cv1 = cv1 * (1.0 - (cv1.abs * 0.01 * (1.0 + sys_age)));
             cv2 = cv2 * (1.0 - (cv2.abs * 0.01 * (1.0 + sys_age)));
             
@@ -455,12 +451,10 @@ Engine_Elianne : CroneEngine {
             wow = OnePole.kr(LFNoise2.kr(Rand(0.5, 2.0)) * wow_amt * 0.05, 0.95);
             flutter = LFNoise1.kr(15) * flut_amt * 0.005;
             
-            // Búfer expandido a 6.2s para soportar 6s + Wow/Flutter
             tape_dt = (tape_time_lag + wow + flutter).clip(0.01, 6.1);
             tape_raw = DelayC.ar(tape_in, 6.2, tape_dt);
             tape_sat_sig = (tape_raw + (Delay1.ar(tape_raw) * 0.2)).tanh;
             
-            // Filtro de erosión recalibrado para 6s
             tape_physics_cutoff = LinExp.kr(tape_time_lag.max(0.01), 0.01, 6.0, 15000, 1500);
             tape_out = LPF.ar(tape_sat_sig, tape_physics_cutoff);
             
