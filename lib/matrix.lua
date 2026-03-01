@@ -1,4 +1,4 @@
--- lib/matrix.lua v0.301
+-- lib/matrix.lua v0.302
 -- CHANGELOG v0.301: Bucles expandidos a 69 para soportar Nodos MIDI y Clock.
 
 local Matrix = {}
