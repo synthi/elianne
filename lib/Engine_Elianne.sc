@@ -296,7 +296,7 @@ Engine_Elianne : CroneEngine {
                 cv2_mode=0, range=0, jfet=1.5, t_ping=0, phys_bus, seed_offset=0;
                 
             var aud, cv1, res_cv, cv2, p_shift, sys_age, age_fc, age_q;
-            var ping_trig, ping_env, cv2_mod;
+            var combined_trig, ping_env, exciter, cv2_mod;
             var base_f, f_mod, q_mod;
             var drive_raw, drive_aud, lp, bp, hp;
             var notch_f, notch_svf_lp, notch_svf_hp, notch;
@@ -311,8 +311,16 @@ Engine_Elianne : CroneEngine {
             age_fc = K2A.ar(LFNoise2.kr(0.0149 + seed_offset)) * sys_age * 0.05;
             age_q = K2A.ar(LFNoise2.kr(0.0197 + seed_offset)) * sys_age * 0.2;
             
-            ping_trig = (Schmidt.ar(cv2, 0.5, 0.6) * cv2_mode) + K2A.ar(t_ping);
-            ping_env = EnvGen.ar(Env.perc(0.001, final_q * 0.1), ping_trig);
+            // LÓGICA DE PING (Serge VCFQ / ARP 1047 Style)
+            // Sumamos el trigger del CV2 y el trigger manual (t_ping)
+            combined_trig = (Schmidt.ar(cv2, 0.5, 0.6) * cv2_mode) + K2A.ar(t_ping);
+            
+            // 1. Envolvente de Resonancia (Ringing)
+            ping_env = EnvGen.ar(Env.perc(0.001, final_q * 0.1), combined_trig);
+            
+            // 2. Excitador Acústico (Spike de 5ms a máximo volumen)
+            exciter = EnvGen.ar(Env.perc(0.0001, 0.005), combined_trig) * 5.0;
+            
             cv2_mod = cv2 * (1 - cv2_mode);
             
             base_f = K2A.ar(Select.kr(range, [cutoff, cutoff * 0.01]));
@@ -320,10 +328,10 @@ Engine_Elianne : CroneEngine {
             f_mod = f_mod.clip(10, 20000);
             
             q_mod = (q + (res_cv * 10) + (ping_env * 500)) * (1.0 + age_q);
-            q_mod = q_mod.clip(0.1, 500);
+            q_mod = q_mod.clip(0.1, 400); // Tope de seguridad para evitar explosión matemática
             
-            // PING INJECTION AL AUDIO
-            drive_raw = (aud * jfet) + (ping_trig * 0.5);
+            // INYECCIÓN DIRECTA AL NÚCLEO DE AUDIO
+            drive_raw = (aud * jfet) + exciter;
             drive_aud = OnePole.ar(drive_raw.tanh, 0.4);
             
             lp = SVF.ar(drive_aud, f_mod, q_mod, 1, 0, 0, 0, 0);
