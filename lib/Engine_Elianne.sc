@@ -1,4 +1,4 @@
-// lib/Engine_Elianne.sc v0.300
+// lib/Engine_Elianne.sc v0.301
 // CHANGELOG v0.300:
 // 1. ARCHITECTURE: Matriz expandida a 69x64 (Asimétrica).
 // 2. DSP: Añadido SynthDef(\Elianne_MIDI_CV) para inyectar voltajes MIDI suavizados.
@@ -435,10 +435,13 @@ Engine_Elianne : CroneEngine {
             pan_mod_l = Select.ar(K2A.ar(cv_dest_l), [DC.ar(0.0), cv_l]);
             pan_mod_r = Select.ar(K2A.ar(cv_dest_r),[DC.ar(0.0), cv_r]);
             
+            // El ADC ahora entra por la matriz. Solo lo leemos aquí para el adc_mon directo.
+            adc = SoundIn.ar([0, 1]); 
+            
             ml = Pan2.ar(sat.(InFeedback.ar(in_ml) * In.kr(lvl_ml) + noise_floor) * (1.0 + vca_mod_l).clip(0, 2), (In.kr(pan_ml) + pan_mod_l).clip(-1, 1));
             mr = Pan2.ar(sat.(InFeedback.ar(in_mr) * In.kr(lvl_mr) + noise_floor) * (1.0 + vca_mod_r).clip(0, 2), (In.kr(pan_mr) + pan_mod_r).clip(-1, 1));
             
-            sum = (ml + mr) * drive;
+            sum = (ml + mr) * drive; // FIX: Eliminados al y ar de la suma de los filtros
             
             age_vcf_l = K2A.ar(LFNoise2.kr(0.0151)) * sys_age * 0.05;
             age_vcf_r = K2A.ar(LFNoise2.kr(0.0163)) * sys_age * 0.05;
@@ -583,7 +586,7 @@ Engine_Elianne : CroneEngine {
             var val = msg[3];
             
             matrix_state[dst][src] = val;
-            synth_matrix_rows[dst].set(\gains, matrix_state[dst]);
+            synth_matrix_rows[dst].setn(\gains, matrix_state[dst]); // FIX CRÍTICO: .setn en lugar de .set
         });
         
         this.addCommand("pause_matrix_row", "i", { |msg| synth_matrix_rows[msg[1]].run(false) });
