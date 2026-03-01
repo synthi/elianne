@@ -1,4 +1,4 @@
-// lib/Engine_Elianne.sc v0.104
+// lib/Engine_Elianne.sc v0.105
 // CHANGELOG v0.104:
 // 1. DSP: Normalización de amplitud de onda senoidal (* 1.2) para compensar pérdida del conformador.
 // 2. DSP: Piso de ruido calibrado (-65dB general, -54dB para entradas de audio 1047).
@@ -74,7 +74,7 @@ Engine_Elianne : CroneEngine {
             
             sys_age = In.kr(phys_bus + 0) * 10.0; 
             noise_floor = PinkNoise.ar(0.00056 + (sys_age * 0.001)); // -65dB
-            sat = { |sig| (sig * 1.25).softclip * 0.8 };
+            sat = { |sig| (sig * 1.25).softclip * 0.92 };
             
             fm1 = sat.(InFeedback.ar(in_fm1) * In.kr(lvl_fm1) + noise_floor);
             fm2 = sat.(InFeedback.ar(in_fm2) * In.kr(lvl_fm2) + noise_floor);
@@ -126,7 +126,7 @@ Engine_Elianne : CroneEngine {
             
             sys_age = In.kr(phys_bus + 0) * 10.0;
             noise_floor = PinkNoise.ar(0.00056 + (sys_age * 0.001)); // -65dB
-            sat = { |sig| (sig * 1.25).softclip * 0.8 };
+            sat = { |sig| (sig * 1.25).softclip * 0.92 };
             
             age_p1 = K2A.ar(LFNoise2.kr(0.0127)) * sys_age * 0.02;
             age_s1 = K2A.ar(LFNoise2.kr(0.0181)) * sys_age * 0.05;
@@ -202,7 +202,7 @@ Engine_Elianne : CroneEngine {
             
             sys_age = In.kr(phys_bus + 0) * 10.0;
             noise_floor = PinkNoise.ar(0.00056 + (sys_age * 0.001)); // -65dB
-            sat = { |sig| (sig * 1.25).softclip * 0.8 };
+            sat = { |sig| (sig * 1.25).softclip * 0.92 };
             
             sig = sat.(InFeedback.ar(in_sig) * In.kr(lvl_sig) + noise_floor);
             clk_ext = InFeedback.ar(in_clk) * In.kr(lvl_clk) + noise_floor; 
@@ -263,7 +263,7 @@ Engine_Elianne : CroneEngine {
             
             sys_age = In.kr(phys_bus + 0) * 10.0;
             noise_floor = PinkNoise.ar(0.00056 + (sys_age * 0.001)); // -65dB
-            sat = { |sig| (sig * 1.25).softclip * 0.8 };
+            sat = { |sig| (sig * 1.25).softclip * 0.9 };
             
             car = sat.(InFeedback.ar(in_car) * In.kr(lvl_car) + noise_floor);
             mod = sat.(InFeedback.ar(in_mod) * In.kr(lvl_mod) + noise_floor);
@@ -291,16 +291,17 @@ Engine_Elianne : CroneEngine {
             current_state = Select.ar(K2A.ar(state_mode),[state_flip, DC.ar(1), DC.ar(0)]);
             state_smooth = Lag.ar(current_state, xfade);
             
-            core_sig = XFade2.ar(car * unmod_gain, rm_sig * mod_gain, state_smooth * 2 - 1);
+            // Compensación de ganancia por saturación y matemáticas
+            core_sig = XFade2.ar(car * unmod_gain * 1.1, rm_sig * mod_gain * 2.0, state_smooth * 2 - 1);
             
             vca_env = (vca_base + vca_cv).clip(0, 1);
             vca_final = LinXFade2.ar(vca_env, vca_env.squared, vca_resp * 2 - 1);
             final_sig = core_sig * vca_final;
             
             Out.ar(out_main, final_sig * In.kr(lvl_main));
-            Out.ar(out_inv, rm_sig * In.kr(lvl_inv)); 
-            Out.ar(out_sum, sum_sig * In.kr(lvl_sum));
-            Out.ar(out_diff, diff_sig * In.kr(lvl_diff));
+            Out.ar(out_inv, (rm_sig * 2.0) * In.kr(lvl_inv)); 
+            Out.ar(out_sum, (sum_sig * 1.2) * In.kr(lvl_sum));
+            Out.ar(out_diff, (diff_sig * 1.2) * In.kr(lvl_diff));
         }).add;
 
         // =====================================================================
@@ -324,7 +325,7 @@ Engine_Elianne : CroneEngine {
             sys_age = In.kr(phys_bus + 0) * 10.0;
             noise_floor_cv = PinkNoise.ar(0.00056 + (sys_age * 0.001)); // -65dB
             noise_floor_aud = PinkNoise.ar(0.002 + (sys_age * 0.001));  // -54dB (Excitar auto-oscilación)
-            sat = { |sig| (sig * 1.25).softclip * 0.8 };
+            sat = { |sig| (sig * 1.25).softclip * 0.92 };
             
             aud = sat.(InFeedback.ar(in_aud) * In.kr(lvl_aud) + noise_floor_aud);
             cv1 = sat.(InFeedback.ar(in_cv1) * In.kr(lvl_cv1) + noise_floor_cv);
@@ -388,7 +389,7 @@ Engine_Elianne : CroneEngine {
             
             sys_age = In.kr(phys_bus + 0) * 10.0;
             noise_floor = PinkNoise.ar(0.00056 + (sys_age * 0.001)); // -65dB
-            sat = { |sig| (sig * 1.25).softclip * 0.8 };
+            sat = { |sig| (sig * 1.25).softclip * 0.94 };
             
             ml = Pan2.ar(sat.(InFeedback.ar(in_ml) * In.kr(lvl_ml) + noise_floor), In.kr(pan_ml));
             mr = Pan2.ar(sat.(InFeedback.ar(in_mr) * In.kr(lvl_mr) + noise_floor), In.kr(pan_mr));
