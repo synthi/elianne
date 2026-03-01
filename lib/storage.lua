@@ -8,7 +8,6 @@ local Storage = {}
 
 Storage.morph_coroutine = nil
 
--- Lista de parámetros que NUNCA deben guardarse ni cargarse en un Snapshot
 local param_blacklist = {
     ["morph_time"] = true,["m8_master_vol"] = true
 }
@@ -18,9 +17,19 @@ function Storage.get_filename(pset_number)
     return _path.data .. "elianne/state_" .. name .. ".data"
 end
 
--- =====================================================================
--- GESTIÓN DE PSETS (PERSISTENCIA TOTAL)
--- =====================================================================
+-- FIX: Función de migración para Psets antiguos (64 -> 69)
+local function migrate_patch(patch)
+    if not patch then return end
+    for src = 1, 69 do
+        if not patch[src] then
+            patch[src] = {}
+            for dst = 1, 64 do
+                patch[src][dst] = { active = false, level = 1.0, pan = 0.0 }
+            end
+        end
+    end
+end
+
 function Storage.save(G, pset_number)
     if not pset_number then return end
     if not util.file_exists(_path.data .. "elianne") then os.execute("mkdir -p " .. _path.data .. "elianne/") end
@@ -42,13 +51,22 @@ function Storage.load(G, pset_number)
     if util.file_exists(file) then
         local data = tab.load(file)
         if data then
-            if data.snapshots then G.snapshots = data.snapshots end
+            G.pset_loaded = true -- FIX: Bandera para evitar Race Condition en Matrix.init
+            
+            if data.snapshots then 
+                G.snapshots = data.snapshots 
+                for i=1, 6 do
+                    if G.snapshots[i].has_data then migrate_patch(G.snapshots[i].patch) end
+                end
+            end
             G.active_snap = data.active_snap
             
             if data.patch then
+                migrate_patch(data.patch) -- FIX: Migrar matriz principal
+                
                 if G.patch then
                     for dst_id = 1, 64 do
-                        for src_id = 1, 64 do
+                        for src_id = 1, 69 do
                             if G.patch[src_id] and G.patch[src_id][dst_id] and G.patch[src_id][dst_id].active then
                                 engine.patch_set(dst_id, src_id, 0.0)
                             end
@@ -62,7 +80,7 @@ function Storage.load(G, pset_number)
                 clock.run(function()
                     for dst_id = 1, 64 do
                         local has_active = false
-                        for src_id = 1, 64 do
+                        for src_id = 1, 69 do
                             if G.patch[src_id] and G.patch[src_id][dst_id] and G.patch[src_id][dst_id].active then
                                 engine.patch_set(dst_id, src_id, 1.0)
                                 has_active = true
@@ -79,6 +97,46 @@ function Storage.load(G, pset_number)
     else
         print("ELIANNE: No se encontró archivo de estado para este PSET.")
     end
+end
+```
+
+#### 3. Prevención de Carrera en `lib/matrix.lua`
+Abre `lib/matrix.lua`. Busca la función `Matrix.init(G)` y **sustitúyela completamente** por esta:
+
+```lua
+function Matrix.init(G)
+    -- FIX: Si Storage.load ya está enviando los cables, Matrix.init se salta este paso para evitar Race Condition
+    if not G.pset_loaded then
+        for dst_id = 1, 64 do
+            local has_active = false
+            for src_id = 1, 69 do
+                if G.patch[src_id] and G.patch[src_id][dst_id] and G.patch[src_id][dst_id].active then
+                    engine.patch_set(dst_id, src_id, 1.0)
+                    has_active = true
+                end
+            end
+            if has_active then engine.resume_matrix_row(dst_id - 1) else engine.pause_matrix_row(dst_id - 1) end
+        end
+    end
+    
+    for i = 1, 69 do
+        local lvl = params:get("node_lvl_" .. i)
+        local node = G.nodes[i]
+        if node then
+            node.level = lvl
+            if node.type == "out" then
+                engine.set_out_level(i, lvl)
+            elseif node.type == "in" then
+                engine.set_in_level(i, lvl)
+                if node.module == 8 and i >= 55 and i <= 58 then
+                    local pan = params:get("node_pan_" .. i)
+                    node.pan = pan
+                    engine.set_in_pan(i, pan)
+                end
+            end
+        end
+    end
+    print("ELIANNE: Matriz DSP (69x64) Inicializada.")
 end
 
 -- =====================================================================
