@@ -41,8 +41,7 @@ end
 local function clean_str(str) return str and string.gsub(str, " ", "") or "" end
 
 function ScreenUI.draw_idle(G)
-    local GridUI = include('lib/grid_ui')
-    
+    -- 1. Grid Virtual (Sincronización 1:1 con caché física)
     for x = 1, 16 do
         for y = 1, 8 do
             if y == 1 or y == 2 or y == 6 or y == 7 or (y == 8 and x >= 15) then
@@ -54,10 +53,12 @@ function ScreenUI.draw_idle(G)
         end
     end
 
-    screen.level(1); screen.move(0, 22); screen.line(128, 22); screen.stroke()
-    screen.move(0, 30); screen.line(128, 30); screen.stroke()
-    screen.level(4); screen.move(64, 28); screen.text_center("ELIANNE 2500")
+    -- 2. Texto Central y Líneas (Subidos 1 pixel)
+    screen.level(1); screen.move(0, 21); screen.line(128, 21); screen.stroke()
+    screen.move(0, 29); screen.line(128, 29); screen.stroke()
+    screen.level(4); screen.move(64, 27); screen.text_center("ELIANNE 2500")
 
+    -- 3. Cables por encima
     screen.aa(1); screen.level(10)
     if G.patch and G.nodes then
         for src_id, dests in pairs(G.patch) do
@@ -79,6 +80,7 @@ function ScreenUI.draw_idle(G)
     end
     screen.aa(0)
     
+    -- 4. Telemetría Dinámica Limpia
     local vol, vcf1, vcf2 = 0.0, 18000, 18000
     pcall(function() vol = params:get("m8_master_vol") or 0.0; vcf1 = params:get("m8_cut_l") or 18000; vcf2 = params:get("m8_cut_r") or 18000 end)
     screen.level(15); screen.move(2, 62); screen.text(string.format("%.1fdB", vol))
