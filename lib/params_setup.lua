@@ -1,6 +1,7 @@
--- lib/params_setup.lua v0.202
--- CHANGELOG v0.202:
--- 1. FIX FATAL: Añadido 'if G.booting then return end' a todas las acciones para prevenir UDP Flood.
+-- lib/params_setup.lua v0.203
+-- CHANGELOG v0.203:
+-- 1. FEATURE: Añadidos m1_fm1_type, m1_fm2_type, m2_fm1_type, m2_fm2_type (Lin/Exp).
+-- 2. FEATURE: Añadidos m3_out3_wave, m3_out4_wave (Selector de onda para 1023).
 
 local Params = {}
 
@@ -11,7 +12,7 @@ function Params.init(G)
     params:add{type = "control", id = "thermal_drift", name = "System Age", controlspec = controlspec.new(0.0, 0.1, 'lin', 0.001, 0.01), action = function(x) if G.booting then return end; engine.set_global_physics("thermal", x) end}
     params:add{type = "control", id = "morph_time", name = "Morph Time", controlspec = controlspec.new(0.0, 120.0, 'lin', 0.1, 1.0, "s")}
 
-    params:add_group("MOD 1: 1004-P (A)", 8)
+    params:add_group("MOD 1: 1004-P (A)", 10)
     params:add{type = "control", id = "m1_tune", name = "Tune", controlspec = controlspec.new(10.0, 16000.0, 'exp', 0.001, 100.0, "Hz"), action = function(x) if G.booting then return end; engine.m1_tune(x) end}
     params:add{type = "control", id = "m1_fine", name = "Fine Tune", controlspec = controlspec.new(-2.0, 2.0, 'lin', 0.001, 0.0, "Hz"), action = function(x) if G.booting then return end; engine.m1_fine(x) end}
     params:add{type = "control", id = "m1_pwm", name = "PWM Base", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.5), action = function(x) if G.booting then return end; engine.m1_pwm(x) end}
@@ -20,8 +21,10 @@ function Params.init(G)
     params:add{type = "control", id = "m1_mix_saw", name = "Mix Saw", controlspec = controlspec.new(-1.0, 1.0, 'lin', 0.01, 0.0), action = function(x) if G.booting then return end; engine.m1_mix_saw(x) end}
     params:add{type = "control", id = "m1_mix_pulse", name = "Mix Pulse", controlspec = controlspec.new(-1.0, 1.0, 'lin', 0.01, 0.0), action = function(x) if G.booting then return end; engine.m1_mix_pulse(x) end}
     params:add{type = "option", id = "m1_range", name = "Range", options = {"HI", "LO"}, default = 1, action = function(x) if G.booting then return end; engine.m1_range(x - 1) end}
+    params:add{type = "option", id = "m1_fm1_type", name = "FM 1 Type", options = {"LIN", "EXP"}, default = 1, action = function(x) if G.booting then return end; engine.m1_fm1_type(x - 1) end}
+    params:add{type = "option", id = "m1_fm2_type", name = "FM 2 Type", options = {"LIN", "EXP"}, default = 2, action = function(x) if G.booting then return end; engine.m1_fm2_type(x - 1) end}
 
-    params:add_group("MOD 2: 1004-P (B)", 8)
+    params:add_group("MOD 2: 1004-P (B)", 10)
     params:add{type = "control", id = "m2_tune", name = "Tune", controlspec = controlspec.new(10.0, 16000.0, 'exp', 0.001, 100.0, "Hz"), action = function(x) if G.booting then return end; engine.m2_tune(x) end}
     params:add{type = "control", id = "m2_fine", name = "Fine Tune", controlspec = controlspec.new(-2.0, 2.0, 'lin', 0.001, 0.0, "Hz"), action = function(x) if G.booting then return end; engine.m2_fine(x) end}
     params:add{type = "control", id = "m2_pwm", name = "PWM Base", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.5), action = function(x) if G.booting then return end; engine.m2_pwm(x) end}
@@ -30,20 +33,25 @@ function Params.init(G)
     params:add{type = "control", id = "m2_mix_saw", name = "Mix Saw", controlspec = controlspec.new(-1.0, 1.0, 'lin', 0.01, 0.0), action = function(x) if G.booting then return end; engine.m2_mix_saw(x) end}
     params:add{type = "control", id = "m2_mix_pulse", name = "Mix Pulse", controlspec = controlspec.new(-1.0, 1.0, 'lin', 0.01, 0.0), action = function(x) if G.booting then return end; engine.m2_mix_pulse(x) end}
     params:add{type = "option", id = "m2_range", name = "Range", options = {"HI", "LO"}, default = 1, action = function(x) if G.booting then return end; engine.m2_range(x - 1) end}
+    params:add{type = "option", id = "m2_fm1_type", name = "FM 1 Type", options = {"LIN", "EXP"}, default = 1, action = function(x) if G.booting then return end; engine.m2_fm1_type(x - 1) end}
+    params:add{type = "option", id = "m2_fm2_type", name = "FM 2 Type", options = {"LIN", "EXP"}, default = 2, action = function(x) if G.booting then return end; engine.m2_fm2_type(x - 1) end}
 
-    params:add_group("MOD 3: 1023 DUAL VCO", 12)
+    params:add_group("MOD 3: 1023 DUAL VCO", 14)
     params:add{type = "control", id = "m3_tune1", name = "Osc 1 Tune", controlspec = controlspec.new(0.01, 16000.0, 'exp', 0.001, 100.0, "Hz"), action = function(x) if G.booting then return end; engine.m3_tune1(x) end}
     params:add{type = "control", id = "m3_pwm1", name = "Osc 1 PWM", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.5), action = function(x) if G.booting then return end; engine.m3_pwm1(x) end}
     params:add{type = "control", id = "m3_morph1", name = "Osc 1 Morph", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.001, 0.0), action = function(x) if G.booting then return end; engine.m3_morph1(x) end}
     params:add{type = "option", id = "m3_range1", name = "Osc 1 Range", options = {"HI", "LO"}, default = 1, action = function(x) if G.booting then return end; engine.m3_range1(x - 1) end}
     params:add{type = "option", id = "m3_pv1_mode", name = "Osc 1 PV Dest", options = {"PWM", "VOCT"}, default = 1, action = function(x) if G.booting then return end; engine.m3_pv1_mode(x - 1) end}
     params:add{type = "option", id = "m3_fm1_mode", name = "Osc 1 FM Dest", options = {"FM", "MORPH"}, default = 1, action = function(x) if G.booting then return end; engine.m3_fm1_mode(x - 1) end}
+    params:add{type = "option", id = "m3_out3_wave", name = "Osc 1 Multi Wave", options = {"SINE", "TRI", "SAW", "SQR", "PULSE"}, default = 1, action = function(x) if G.booting then return end; engine.m3_out3_wave(x - 1) end}
+    
     params:add{type = "control", id = "m3_tune2", name = "Osc 2 Tune", controlspec = controlspec.new(0.01, 16000.0, 'exp', 0.001, 101.0, "Hz"), action = function(x) if G.booting then return end; engine.m3_tune2(x) end}
     params:add{type = "control", id = "m3_pwm2", name = "Osc 2 PWM", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.5), action = function(x) if G.booting then return end; engine.m3_pwm2(x) end}
     params:add{type = "control", id = "m3_morph2", name = "Osc 2 Morph", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.001, 0.0), action = function(x) if G.booting then return end; engine.m3_morph2(x) end}
     params:add{type = "option", id = "m3_range2", name = "Osc 2 Range", options = {"HI", "LO"}, default = 1, action = function(x) if G.booting then return end; engine.m3_range2(x - 1) end}
     params:add{type = "option", id = "m3_pv2_mode", name = "Osc 2 PV Dest", options = {"PWM", "VOCT"}, default = 1, action = function(x) if G.booting then return end; engine.m3_pv2_mode(x - 1) end}
     params:add{type = "option", id = "m3_fm2_mode", name = "Osc 2 FM Dest", options = {"FM", "MORPH"}, default = 1, action = function(x) if G.booting then return end; engine.m3_fm2_mode(x - 1) end}
+    params:add{type = "option", id = "m3_out4_wave", name = "Osc 2 Multi Wave", options = {"SINE", "TRI", "SAW", "SQR", "PULSE"}, default = 1, action = function(x) if G.booting then return end; engine.m3_out4_wave(x - 1) end}
 
     params:add_group("MOD 4: 1016/36 NOISE", 10)
     params:add{type = "control", id = "m4_slow_rate", name = "Slow Rand Rate", controlspec = controlspec.new(0.01, 10.0, 'exp', 0.01, 0.1, "Hz"), action = function(x) if G.booting then return end; engine.m4_slow_rate(x) end}
