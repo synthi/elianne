@@ -132,7 +132,7 @@ function Storage.load_snapshot(G, snap_id)
         
         for dst_id = 1, 64 do
             local has_active = false
-            for src_id = 1, 64 do
+            for src_id = 1, 69 do -- FIX: 69
                 local is_active = target.patch[src_id][dst_id].active
                 G.patch[src_id][dst_id].active = is_active
                 engine.patch_set(dst_id, src_id, is_active and 1.0 or 0.0)
@@ -152,7 +152,7 @@ function Storage.load_snapshot(G, snap_id)
         
         for dst_id = 1, 64 do
             local needs_row = false
-            for src_id = 1, 64 do
+            for src_id = 1, 69 do --fix 69 josu
                 if start_patch[src_id][dst_id].active or target.patch[src_id][dst_id].active then needs_row = true end
             end
             if needs_row then engine.resume_matrix_row(dst_id - 1) end
@@ -178,7 +178,7 @@ function Storage.load_snapshot(G, snap_id)
                     end
                     for dst_id = 1, 64 do
                         local has_active = false
-                        for src_id = 1, 64 do
+                        for src_id = 1, 69 do --fix 69 josu
                             local is_active = target.patch[src_id][dst_id].active
                             G.patch[src_id][dst_id].active = is_active
                             engine.patch_set(dst_id, src_id, is_active and 1.0 or 0.0)
@@ -226,15 +226,13 @@ function Storage.load_snapshot(G, snap_id)
                 
                 -- CROSSFADE DE MATRIZ (Simultáneo 0-100%)
                 for dst_id = 1, 64 do
-                    for src_id = 1, 64 do
+                    for src_id = 1, 69 do -- FIX: 69
                         local start_active = start_patch[src_id][dst_id].active
                         local end_active = target.patch[src_id][dst_id].active
                         
                         if start_active and not end_active then
-                            -- Fade Out
                             engine.patch_set(dst_id, src_id, 1.0 - progress)
                         elseif not start_active and end_active then
-                            -- Fade In
                             engine.patch_set(dst_id, src_id, progress)
                         end
                     end
