@@ -1,6 +1,7 @@
--- lib/globals.lua v0.100
--- CHANGELOG v0.3.2:
--- 1. NOMBRES: Nodos 17 y 18 del 1023 renombrados a "FM/Morph In".
+-- lib/globals.lua v0.200
+-- CHANGELOG v0.200:
+-- 1. TOPOLOGÍA: Nodos 57/58 convertidos a CV In. Nodos 63/64 convertidos a ADC Out.
+-- 2. ESTADO: Añadidas variables para SHIFT y sistema de SNAPSHOTS.
 
 local G = {}
 
@@ -18,6 +19,18 @@ G.focus = {
     target_x = nil,
     target_y = nil
 }
+
+-- ESTADO SHIFT Y SNAPSHOTS
+G.shift_held = false
+G.active_snap = nil
+G.snapshots = {}
+for i = 1, 6 do
+    G.snapshots[i] = {
+        has_data = false,
+        patch = nil,
+        params = nil
+    }
+end
 
 G.patch = {}
 G.nodes = {}
@@ -40,7 +53,7 @@ function G.init_nodes()
         local node = {
             id = id, x = x, y = y, type = type, 
             module = module_idx, name = name,
-            level = 0.5, pan = 0.0, inverted = false
+            level = 0.33, pan = 0.0, inverted = false
         }
         G.nodes[id] = node
         G.grid_map[x][y] = node
@@ -48,7 +61,7 @@ function G.init_nodes()
         return id
     end
 
-    -- MÓDULO 1: 1004-T (A) [IDs 1-8]
+    -- MÓDULO 1: 1004-P (A) [IDs 1-8]
     add_node(1, 1, "in", 1, "FM 1 In")
     add_node(2, 1, "in", 1, "FM 2 In")
     add_node(1, 2, "in", 1, "PWM In")
@@ -58,7 +71,7 @@ function G.init_nodes()
     add_node(1, 7, "out", 1, "Sine Out")
     add_node(2, 7, "out", 1, "Pulse Out")
 
-    -- MÓDULO 2: 1004-T (B)[IDs 9-16]
+    -- MÓDULO 2: 1004-P (B)[IDs 9-16]
     add_node(3, 1, "in", 2, "FM 1 In")
     add_node(4, 1, "in", 2, "FM 2 In")
     add_node(3, 2, "in", 2, "PWM In")
@@ -119,16 +132,16 @@ function G.init_nodes()
     -- MÓDULO 8: NEXUS [IDs 55-62]
     add_node(15, 1, "in", 8, "Modular In L")
     add_node(16, 1, "in", 8, "Modular In R")
-    add_node(15, 2, "in", 8, "ADC In L")
-    add_node(16, 2, "in", 8, "ADC In R")
+    add_node(15, 2, "in", 8, "CV L In") -- NUEVO
+    add_node(16, 2, "in", 8, "CV R In") -- NUEVO
     add_node(15, 6, "out", 8, "Master Out L")
     add_node(16, 6, "out", 8, "Master Out R")
     add_node(15, 7, "out", 8, "Tape Send L")
     add_node(16, 7, "out", 8, "Tape Send R")
 
-    -- NODOS FANTASMA (Para completar 64)[IDs 63-64]
-    add_node(16, 8, "dummy", 8, "Dummy 1")
-    add_node(16, 8, "dummy", 8, "Dummy 2")
+    -- ADC OUTS (Fila 8)[IDs 63-64]
+    add_node(15, 8, "out", 8, "ADC Out L") -- NUEVO
+    add_node(16, 8, "out", 8, "ADC Out R") -- NUEVO
 
     for src = 1, 64 do
         G.patch[src] = {}
