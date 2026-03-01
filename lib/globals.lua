@@ -1,4 +1,4 @@
--- lib/globals.lua v0.3.2
+-- lib/globals.lua v0.100
 -- CHANGELOG v0.3.2:
 -- 1. NOMBRES: Nodos 17 y 18 del 1023 renombrados a "FM/Morph In".
 
