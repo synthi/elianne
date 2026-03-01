@@ -1,8 +1,7 @@
-// lib/Engine_Elianne.sc v0.103
-// CHANGELOG v0.103:
-// 1. DSP: Ping Exciter (1047) inyectado directamente al audio para auto-oscilación real.
-// 2. DSP: Rango HI/LO de osciladores ajustado a 1:1000 (0.001).
-// 3. DSP: Añadido switch FM/Morph a las entradas FM del 1023.
+// lib/Engine_Elianne.sc v0.104
+// CHANGELOG v0.104:
+// 1. DSP: Normalización de amplitud de onda senoidal (* 1.2) para compensar pérdida del conformador.
+// 2. DSP: Piso de ruido calibrado (-65dB general, -54dB para entradas de audio 1047).
 
 Engine_Elianne : CroneEngine {
     var <bus_nodes_tx;
@@ -74,7 +73,7 @@ Engine_Elianne : CroneEngine {
             var raw_tri, sqr, sig_tri, sig_saw, sig_pulse, sig_sine, mix;
             
             sys_age = In.kr(phys_bus + 0) * 10.0; 
-            noise_floor = PinkNoise.ar(0.0001 + (sys_age * 0.001));
+            noise_floor = PinkNoise.ar(0.00056 + (sys_age * 0.001)); // -65dB
             sat = { |sig| (sig * 1.25).softclip * 0.8 };
             
             fm1 = sat.(InFeedback.ar(in_fm1) * In.kr(lvl_fm1) + noise_floor);
@@ -86,9 +85,9 @@ Engine_Elianne : CroneEngine {
             age_shape = K2A.ar(LFNoise2.kr(0.0171 + seed_offset)) * sys_age * 0.05;
             age_amp = 1.0 - (K2A.ar(LFNoise2.kr(0.0233 + seed_offset)).range(0, 0.1) * sys_age);
             
-            base_freq = Select.kr(range,[tune, tune * 0.001]); // 1:1000 Ratio
+            base_freq = Select.kr(range,[tune, tune * 0.001]);
             freq = (K2A.ar(base_freq + fine) + (fm1 * 50) + (fm2 * 50)) * (2.0 ** (voct + age_pitch));
-            pwm_final = (pwm_base + pwm_mod).clip(0.05, 0.95);
+            pwm_final = (pwm_base + pwm_mod).clip(0.0, 1.0);
             
             phase = Phasor.ar(0, freq * SampleDur.ir, 0, 1);
             raw_tri = (phase * 2 - 1).abs * 2 - 1 + age_shape; 
@@ -97,7 +96,8 @@ Engine_Elianne : CroneEngine {
             sig_tri = LeakDC.ar(raw_tri + 0.015);
             sig_saw = (phase * 2 - 1) + (HPF.ar(Impulse.ar(freq), 10000) * 0.1);
             sig_pulse = (sig_tri > ((pwm_final * 2) - 1)) * 2 - 1;
-            sig_sine = LeakDC.ar(sig_tri - (sig_tri.pow(3) / 6.0)) + (sqr * 0.02);
+            // Normalización de amplitud senoidal (* 1.2)
+            sig_sine = (LeakDC.ar(sig_tri - (sig_tri.pow(3) / 6.0)) + (sqr * 0.02)) * 1.2;
             
             mix = ((sig_sine * mix_sine) + (sig_tri * mix_tri) + (sig_saw * mix_saw) + (sig_pulse * mix_pulse)) * age_amp;
             
@@ -125,7 +125,7 @@ Engine_Elianne : CroneEngine {
             var fm2_in, fm2_pitch, fm2_morph, pv2, voct2, pwm_mod2, freq2, ph2, rtri2, sqr2, tri2, saw2, pul2, sin2, waves2, mix2;
             
             sys_age = In.kr(phys_bus + 0) * 10.0;
-            noise_floor = PinkNoise.ar(0.0001 + (sys_age * 0.001));
+            noise_floor = PinkNoise.ar(0.00056 + (sys_age * 0.001)); // -65dB
             sat = { |sig| (sig * 1.25).softclip * 0.8 };
             
             age_p1 = K2A.ar(LFNoise2.kr(0.0127)) * sys_age * 0.02;
@@ -150,8 +150,9 @@ Engine_Elianne : CroneEngine {
             sqr1 = (ph1 > 0.5) * 2 - 1;
             tri1 = LeakDC.ar(rtri1 + 0.015);
             saw1 = (ph1 * 2 - 1) + (HPF.ar(Impulse.ar(freq1), 10000) * 0.1);
-            pul1 = (tri1 > (((pwm1 + pwm_mod1).clip(0.05, 0.95) * 2) - 1)) * 2 - 1;
-            sin1 = LeakDC.ar(tri1 - (tri1.pow(3) / 6.0)) + (sqr1 * 0.02);
+            pul1 = (tri1 > (((pwm1 + pwm_mod1).clip(0.0, 1.0) * 2) - 1)) * 2 - 1;
+            // Normalización de amplitud senoidal (* 1.2)
+            sin1 = (LeakDC.ar(tri1 - (tri1.pow(3) / 6.0)) + (sqr1 * 0.02)) * 1.2;
             
             waves1 =[sin1, tri1, saw1, sqr1, pul1, sin1.neg, tri1, saw1.neg, sqr1, pul1.neg];
             mix1 = SelectX.ar((morph1 + fm1_morph).clip(0,1) * 9.0, waves1) * age_a1;
@@ -171,8 +172,9 @@ Engine_Elianne : CroneEngine {
             sqr2 = (ph2 > 0.5) * 2 - 1;
             tri2 = LeakDC.ar(rtri2 + 0.015);
             saw2 = (ph2 * 2 - 1) + (HPF.ar(Impulse.ar(freq2), 10000) * 0.1);
-            pul2 = (tri2 > (((pwm2 + pwm_mod2).clip(0.05, 0.95) * 2) - 1)) * 2 - 1;
-            sin2 = LeakDC.ar(tri2 - (tri2.pow(3) / 6.0)) + (sqr2 * 0.02);
+            pul2 = (tri2 > (((pwm2 + pwm_mod2).clip(0.0, 1.0) * 2) - 1)) * 2 - 1;
+            // Normalización de amplitud senoidal (* 1.2)
+            sin2 = (LeakDC.ar(tri2 - (tri2.pow(3) / 6.0)) + (sqr2 * 0.02)) * 1.2;
             
             waves2 =[sin2, tri2, saw2, sqr2, pul2, sin2.neg, tri2, saw2.neg, sqr2, pul2.neg];
             mix2 = SelectX.ar((morph2 + fm2_morph).clip(0,1) * 9.0, waves2) * age_a2;
@@ -199,7 +201,7 @@ Engine_Elianne : CroneEngine {
             var sh_src, rand_val, skewed, droop_env, step_out, slow_out;
             
             sys_age = In.kr(phys_bus + 0) * 10.0;
-            noise_floor = PinkNoise.ar(0.0001 + (sys_age * 0.001));
+            noise_floor = PinkNoise.ar(0.00056 + (sys_age * 0.001)); // -65dB
             sat = { |sig| (sig * 1.25).softclip * 0.8 };
             
             sig = sat.(InFeedback.ar(in_sig) * In.kr(lvl_sig) + noise_floor);
@@ -260,7 +262,7 @@ Engine_Elianne : CroneEngine {
             var core_sig, vca_env, vca_final, final_sig;
             
             sys_age = In.kr(phys_bus + 0) * 10.0;
-            noise_floor = PinkNoise.ar(0.0001 + (sys_age * 0.001));
+            noise_floor = PinkNoise.ar(0.00056 + (sys_age * 0.001)); // -65dB
             sat = { |sig| (sig * 1.25).softclip * 0.8 };
             
             car = sat.(InFeedback.ar(in_car) * In.kr(lvl_car) + noise_floor);
@@ -312,7 +314,7 @@ Engine_Elianne : CroneEngine {
                 cutoff=1000, fine=0, q=1, notch_ofs=0, final_q=2, out_lvl=1,
                 cv2_mode=0, jfet=1.5, t_ping=0, phys_bus, seed_offset=0;
                 
-            var sys_age, noise_floor, sat;
+            var sys_age, noise_floor_cv, noise_floor_aud, sat;
             var aud, cv1, res_cv, cv2, p_shift, age_fc, age_q;
             var man_ping, combined_trig, ping_env, exciter, cv2_mod;
             var f_mod, q_mod;
@@ -320,19 +322,19 @@ Engine_Elianne : CroneEngine {
             var notch_f, notch_svf_lp, notch_svf_hp, notch;
             
             sys_age = In.kr(phys_bus + 0) * 10.0;
-            noise_floor = PinkNoise.ar(0.0001 + (sys_age * 0.001));
+            noise_floor_cv = PinkNoise.ar(0.00056 + (sys_age * 0.001)); // -65dB
+            noise_floor_aud = PinkNoise.ar(0.002 + (sys_age * 0.001));  // -54dB (Excitar auto-oscilación)
             sat = { |sig| (sig * 1.25).softclip * 0.8 };
             
-            aud = sat.(InFeedback.ar(in_aud) * In.kr(lvl_aud) + noise_floor);
-            cv1 = sat.(InFeedback.ar(in_cv1) * In.kr(lvl_cv1) + noise_floor);
-            res_cv = sat.(InFeedback.ar(in_res) * In.kr(lvl_res) + noise_floor);
-            cv2 = InFeedback.ar(in_cv2) * In.kr(lvl_cv2) + noise_floor; 
+            aud = sat.(InFeedback.ar(in_aud) * In.kr(lvl_aud) + noise_floor_aud);
+            cv1 = sat.(InFeedback.ar(in_cv1) * In.kr(lvl_cv1) + noise_floor_cv);
+            res_cv = sat.(InFeedback.ar(in_res) * In.kr(lvl_res) + noise_floor_cv);
+            cv2 = InFeedback.ar(in_cv2) * In.kr(lvl_cv2) + noise_floor_cv; 
             p_shift = K2A.ar(In.kr(phys_bus + 4));
             
             age_fc = K2A.ar(LFNoise2.kr(0.0149 + seed_offset)) * sys_age * 0.05;
             age_q = K2A.ar(LFNoise2.kr(0.0197 + seed_offset)) * sys_age * 0.2;
             
-            // PING EXCITER (Serge VCFQ Style)
             man_ping = K2A.ar(t_ping);
             combined_trig = (Schmidt.ar(cv2, 0.5, 0.6) * cv2_mode) + man_ping;
             ping_env = EnvGen.ar(Env.perc(0.001, final_q * 0.1), combined_trig);
@@ -344,7 +346,7 @@ Engine_Elianne : CroneEngine {
             f_mod = f_mod.clip(10, 20000);
             
             q_mod = (q + (res_cv * 10) + (ping_env * 500)) * (1.0 + age_q);
-            q_mod = q_mod.clip(0.1, 400);
+            q_mod = q_mod.clip(0.1, 500); // Se ajustará el límite superior en params_setup en la próxima iteración
             
             drive_raw = (aud * jfet) + exciter;
             drive_aud = OnePole.ar(drive_raw.tanh, 0.4);
@@ -385,7 +387,7 @@ Engine_Elianne : CroneEngine {
             var master, final_out;
             
             sys_age = In.kr(phys_bus + 0) * 10.0;
-            noise_floor = PinkNoise.ar(0.0001 + (sys_age * 0.001));
+            noise_floor = PinkNoise.ar(0.00056 + (sys_age * 0.001)); // -65dB
             sat = { |sig| (sig * 1.25).softclip * 0.8 };
             
             ml = Pan2.ar(sat.(InFeedback.ar(in_ml) * In.kr(lvl_ml) + noise_floor), In.kr(pan_ml));
@@ -399,8 +401,8 @@ Engine_Elianne : CroneEngine {
             age_vcf_l = K2A.ar(LFNoise2.kr(0.0151)) * sys_age * 0.05;
             age_vcf_r = K2A.ar(LFNoise2.kr(0.0163)) * sys_age * 0.05;
             
-            filt_l = MoogFF.ar(sum[0], (cut_l * (1.0 + age_vcf_l)).clip(20, 18000), res * 4.0);
-            filt_r = MoogFF.ar(sum[1], (cut_r * (1.0 + age_vcf_r)).clip(20, 18000), res * 4.0);
+            filt_l = MoogFF.ar(sum[0], (cut_l * (1.0 + age_vcf_l)).clip(20, 18000), res * 3.9);
+            filt_r = MoogFF.ar(sum[1], (cut_r * (1.0 + age_vcf_r)).clip(20, 18000), res * 3.9);
             filt_sig = Select.ar(K2A.ar(filt_byp), [[filt_l, filt_r], sum]);
             
             wow_amt = In.kr(phys_bus + 5);
