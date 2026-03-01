@@ -195,11 +195,12 @@ function Storage.load_snapshot(G, snap_id)
                 for p_id, end_val in pairs(target.params) do
                     local start_val = start_params[p_id]
                     if start_val ~= end_val then
-                        -- FIX: Uso de la API oficial de Norns
                         local p_idx = params.lookup[p_id]
                         if p_idx then
                             local p_obj = params.params[p_idx]
-                            if p_obj and p_obj.type == "control" then
+                            -- FIX: La API de Norns no usa .type en el objeto instanciado. 
+                            -- Usamos .controlspec para saber si es un valor continuo interpolable.
+                            if p_obj and p_obj.controlspec then
                                 local current_val
                                 if string.find(p_id, "tune") or string.find(p_id, "cutoff") then
                                     -- Interpolación Exponencial para Frecuencias
