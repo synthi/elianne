@@ -1,4 +1,4 @@
--- lib/screen_ui.lua v0.201
+-- lib/screen_ui.lua v0.202
 -- CHANGELOG v0.201:
 -- 1. UI: Compresión visual del Grid Virtual para no pisar la telemetría.
 -- 2. ERGONOMÍA: HI/LO y PING movidos a K2.
@@ -54,9 +54,9 @@ function ScreenUI.draw_idle(G)
     end
 
     -- 2. Texto Central y Líneas (Subidos 1 pixel)
-    screen.level(1); screen.move(0, 21); screen.line(128, 21); screen.stroke()
-    screen.move(0, 29); screen.line(128, 29); screen.stroke()
-    screen.level(4); screen.move(64, 27); screen.text_center("ELIANNE 2500")
+    screen.level(1); screen.move(0, 20); screen.line(128, 20); screen.stroke()
+    screen.move(0, 28); screen.line(128, 28); screen.stroke()
+    screen.level(4); screen.move(64, 26); screen.text_center("ELIANNE 2500")
 
     -- 3. Cables por encima
     screen.aa(1); screen.level(10)
