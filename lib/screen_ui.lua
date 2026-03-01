@@ -1,22 +1,24 @@
--- lib/screen_ui.lua v0.300
--- CHANGELOG v0.300:
--- 1. UI: Añadidos menús contextuales para Nodos MIDI (IDs 65-68) y Clock (ID 69).
+-- lib/screen_ui.lua v0.203
+-- CHANGELOG v0.201:
+-- 1. UI: Compresión visual del Grid Virtual para no pisar la telemetría.
+-- 2. ERGONOMÍA: HI/LO y PING movidos a K2.
+-- 3. UI: Etiquetas E2 THRESH corregidas.
 
 local ScreenUI = {}
 
-ScreenUI.ping_flash = {[6] = 0, [7] = 0 }
+ScreenUI.ping_flash = { [6] = 0, [7] = 0 }
 
 local MenuDef = {
     [1] = { A = { title = "1004-P (A) MIXER", e1 = {id="m1_mix_sine", name="SINE"}, e2 = {id="m1_mix_tri", name="TRI"}, e3 = {id="m1_mix_saw", name="SAW"}, e4 = {id="m1_mix_pulse", name="PULSE"} }, B = { title = "1004-P (A) CORE", e1 = {id="m1_pwm", name="PWM"}, e2 = {id="m1_tune", name="TUNE"}, e3 = {id="m1_fine", name="FINE"}, k2 = {id="m1_range", name=""} } },
     [2] = { A = { title = "1004-P (B) MIXER", e1 = {id="m2_mix_sine", name="SINE"}, e2 = {id="m2_mix_tri", name="TRI"}, e3 = {id="m2_mix_saw", name="SAW"}, e4 = {id="m2_mix_pulse", name="PULSE"} }, B = { title = "1004-P (B) CORE", e1 = {id="m2_pwm", name="PWM"}, e2 = {id="m2_tune", name="TUNE"}, e3 = {id="m2_fine", name="FINE"}, k2 = {id="m2_range", name=""} } },
     [3] = { A = { title = "1023 - OSC 1", e1 = {id="m3_pwm1", name="PWM"}, e2 = {id="m3_tune1", name="TUNE"}, e3 = {id="m3_morph1", name="MORPH"}, k2 = {id="m3_range1", name=""} }, B = { title = "1023 - OSC 2", e1 = {id="m3_pwm2", name="PWM"}, e2 = {id="m3_tune2", name="TUNE"}, e3 = {id="m3_morph2", name="MORPH"}, k2 = {id="m3_range2", name=""} } },
-    [4] = { A = { title = "1016 NOISE", e1 = {id="m4_slow_rate", name="RATE"}, e2 = {id="m4_tilt1", name="TILT 1"}, e3 = {id="m4_tilt2", name="TILT 2"}, k2 = {id="m4_type1", name="N1"}, k3 = {id="m4_type2", name="N2"} }, B = { title = "1036 S&H", e1 = {id="m4_clk_rate", name="CLOCK"}, e2 = {id="m4_prob_skew", name="SKEW"}, e3 = {id="m4_glide", name="GLIDE"} } },
-    [5] = { A = { title = "1005 STATE", e1 = {id="m5_drive", name="DRIVE"}, e2 = {id="m5_mod_gain", name="MOD"}, e3 = {id="m5_unmod_gain", name="UNMOD"}, k2 = {id="m5_state", name="ST"} }, B = { title = "1005 VCA", e1 = {id="m5_xfade", name="XFADE"}, e2 = {id="m5_vca_base", name="BASE"}, e3 = {id="m5_vca_resp", name="RESP"}, k2 = {id="m5_state", name="ST"} } },
-    [6] = { A = { title = "1047 (A) FILTER", e1 = {id="m6_q", name="RES"}, e2 = {id="m6_cutoff", name="FREQ"}, e3 = {id="m6_fine", name="FINE"}, e4 = {id="m6_jfet", name="DRIVE"}, k2 = {id="m6_ping", name="PING"} }, B = { title = "1047 (A) NOTCH", e1 = {id="m6_p_shift", name="P.SHIFT"}, e2 = {id="m6_notch", name="NOTCH FRQ"}, e3 = {id="m6_final_q", name="KEY DCY"}, k2 = {id="m6_ping", name="PING"} } },
-    [7] = { A = { title = "1047 (B) FILTER", e1 = {id="m7_q", name="RES"}, e2 = {id="m7_cutoff", name="FREQ"}, e3 = {id="m7_fine", name="FINE"}, e4 = {id="m7_jfet", name="DRIVE"}, k2 = {id="m7_ping", name="PING"} }, B = { title = "1047 (B) NOTCH", e1 = {id="m7_p_shift", name="P.SHIFT"}, e2 = {id="m7_notch", name="NOTCH FRQ"}, e3 = {id="m7_final_q", name="KEY DCY"}, k2 = {id="m7_ping", name="PING"} } },[8] = { A = { title = "NEXUS MASTER", e1 = {id="m8_res", name="RES"}, e2 = {id="m8_cut_l", name="VCF L"}, e3 = {id="m8_cut_r", name="VCF R"}, k2 = {id="m8_filt_byp", name="FILT"}, k3 = {id="m8_adc_mon", name="ADC"} }, B = { title = "NEXUS TAPE", e1 = {id="m8_tape_mix", name="MIX"}, e2 = {id="m8_tape_time", name="TIME"}, e3 = {id="m8_tape_fb", name="FDBK"}, e4 = {id="m8_wow", name="W&F"}, k2 = {id="m8_tape_sat", name="SAT"}, k3 = {id="m8_tape_mute", name="MUTE"} } }
+    [4] = { A = { title = "1016 NOISE", e1 = {id="m4_slow_rate", name="RATE"}, e2 = {id="m4_tilt1", name="TILT 1"}, e3 = {id="m4_tilt2", name="TILT 2"}, k2 = {id="m4_type1", name="N1"}, k3 = {id="m4_type2", name="N2"} }, B = { title = "1036 S&H", e1 = {id="m4_clk_rate", name="CLOCK"}, e2 = {id="m4_prob_skew", name="SKEW"}, e3 = {id="m4_glide", name="GLIDE"} } },[5] = { A = { title = "1005 STATE", e1 = {id="m5_drive", name="DRIVE"}, e2 = {id="m5_mod_gain", name="MOD"}, e3 = {id="m5_unmod_gain", name="UNMOD"}, k2 = {id="m5_state", name="ST"} }, B = { title = "1005 VCA", e1 = {id="m5_xfade", name="XFADE"}, e2 = {id="m5_vca_base", name="BASE"}, e3 = {id="m5_vca_resp", name="RESP"}, k2 = {id="m5_state", name="ST"} } },
+    [6] = { A = { title = "1047 (A) FILTER", e1 = {id="m6_q", name="RES"}, e2 = {id="m6_cutoff", name="FREQ"}, e3 = {id="m6_fine", name="FINE"}, e4 = {id="m6_jfet", name="DRIVE"}, k2 = {id="m6_ping", name="PING"} }, B = { title = "1047 (A) NOTCH", e1 = {id="m6_p_shift", name="P.SHIFT"}, e2 = {id="m6_notch", name="NOTCH FRQ"}, e3 = {id="m6_final_q", name="KEY DCY"}, k2 = {id="m6_ping", name="PING"} } },[7] = { A = { title = "1047 (B) FILTER", e1 = {id="m7_q", name="RES"}, e2 = {id="m7_cutoff", name="FREQ"}, e3 = {id="m7_fine", name="FINE"}, e4 = {id="m7_jfet", name="DRIVE"}, k2 = {id="m7_ping", name="PING"} }, B = { title = "1047 (B) NOTCH", e1 = {id="m7_p_shift", name="P.SHIFT"}, e2 = {id="m7_notch", name="NOTCH FRQ"}, e3 = {id="m7_final_q", name="KEY DCY"}, k2 = {id="m7_ping", name="PING"} } },
+    [8] = { A = { title = "NEXUS MASTER", e1 = {id="m8_res", name="RES"}, e2 = {id="m8_cut_l", name="VCF L"}, e3 = {id="m8_cut_r", name="VCF R"}, k2 = {id="m8_filt_byp", name="FILT"}, k3 = {id="m8_adc_mon", name="ADC"} }, B = { title = "NEXUS TAPE", e1 = {id="m8_tape_mix", name="MIX"}, e2 = {id="m8_tape_time", name="TIME"}, e3 = {id="m8_tape_fb", name="FDBK"}, e4 = {id="m8_wow", name="W&F"}, k2 = {id="m8_tape_sat", name="SAT"}, k3 = {id="m8_tape_mute", name="MUTE"} } }
 }
 
 local function grid_to_screen(x, y) 
+    -- Compresión visual: Las filas 6, 7 y 8 se dibujan un paso más arriba
     local visual_y = y
     if y >= 6 then visual_y = y - 1 end
     return (x - 1) * 8 + 4, (visual_y - 1) * 8 + 4 
@@ -39,11 +41,10 @@ end
 local function clean_str(str) return str and string.gsub(str, " ", "") or "" end
 
 function ScreenUI.draw_idle(G)
-    
-
+    -- 1. Grid Virtual (Sincronización 1:1 con caché física)
     for x = 1, 16 do
         for y = 1, 8 do
-            if y == 1 or y == 2 or y == 6 or y == 7 or (y == 8 and x >= 10) then
+            if y == 1 or y == 2 or y == 6 or y == 7 or (y == 8 and x >= 15) then
                 local px, py = grid_to_screen(x, y)
                 local b = (G.grid_cache and G.grid_cache[x] and G.grid_cache[x][y]) or 0
                 if b == -1 then b = 0 end
@@ -52,10 +53,12 @@ function ScreenUI.draw_idle(G)
         end
     end
 
+    -- 2. Texto Central y Líneas (Subidos 1 pixel)
     screen.level(1); screen.move(0, 20); screen.line(128, 20); screen.stroke()
     screen.move(0, 28); screen.line(128, 28); screen.stroke()
     screen.level(4); screen.move(64, 26); screen.text_center("ELIANNE 2500")
 
+    -- 3. Cables por encima
     screen.aa(1); screen.level(10)
     if G.patch and G.nodes then
         for src_id, dests in pairs(G.patch) do
@@ -77,6 +80,7 @@ function ScreenUI.draw_idle(G)
     end
     screen.aa(0)
     
+    -- 4. Telemetría Dinámica Limpia
     local vol, vcf1, vcf2 = 0.0, 18000, 18000
     pcall(function() vol = params:get("m8_master_vol") or 0.0; vcf1 = params:get("m8_cut_l") or 18000; vcf2 = params:get("m8_cut_r") or 18000 end)
     screen.level(15); screen.move(2, 62); screen.text(string.format("%.1fdB", vol))
@@ -114,44 +118,6 @@ function ScreenUI.draw_node_menu(G)
             local w = screen.text_extents(val)
             screen.level(4); screen.move(126 - w - 2, 45); screen.text_right("K2 DEST: ")
         end
-    elseif node.id >= 65 and node.id <= 68 then
-        -- MENÚ NODO MIDI
-        local m_idx = node.id - 64
-        local mode = params:get("midi_mode_"..m_idx)
-        
-        screen.level(4); screen.move(10, 55); screen.text("E1 CH: "); screen.level(15); screen.text(params:string("midi_ch_"..m_idx))
-        
-        if mode == 1 then -- PITCH
-            screen.level(4); screen.move(64, 55); screen.text_center("E2 OCT: "); screen.level(15); screen.move(84, 55); screen.text(params:string("midi_oct_"..m_idx))
-        elseif mode == 3 then -- CC
-            screen.level(4); screen.move(64, 55); screen.text_center("E2 CC: "); screen.level(15); screen.move(84, 55); screen.text(params:string("midi_cc_"..m_idx))
-            local pol_val = params:string("midi_pol_"..m_idx)
-            screen.level(15); screen.move(126, 62); screen.text_right(pol_val)
-            local w = screen.text_extents(pol_val)
-            screen.level(4); screen.move(126 - w - 2, 62); screen.text_right("K3 POL: ")
-        end
-        
-        local mode_val = params:string("midi_mode_"..m_idx)
-        screen.level(15); screen.move(126, 45); screen.text_right(mode_val)
-        local w = screen.text_extents(mode_val)
-        screen.level(4); screen.move(126 - w - 2, 45); screen.text_right("K2 MODE: ")
-        
-    elseif node.id == 69 then
-        -- MENÚ NODO CLOCK
-        local mode = params:get("clk_mode")
-        screen.level(4); screen.move(10, 55); screen.text("E1 JIT: "); screen.level(15); screen.text(params:string("clk_jitter"))
-        
-        if mode == 1 then
-            screen.level(4); screen.move(64, 55); screen.text_center("E2 DIV: "); screen.level(15); screen.move(84, 55); screen.text(params:string("clk_div"))
-        else
-            screen.level(4); screen.move(64, 55); screen.text_center("E2 HZ: "); screen.level(15); screen.move(84, 55); screen.text(params:string("clk_hz"))
-        end
-        
-        local mode_val = params:string("clk_mode")
-        screen.level(15); screen.move(126, 45); screen.text_right(mode_val)
-        local w = screen.text_extents(mode_val)
-        screen.level(4); screen.move(126 - w - 2, 45); screen.text_right("K2 MODE: ")
-        
     elseif node.id == 42 or node.id == 50 then
         local p_id = node.id == 42 and "m6_cv2_mode" or "m7_cv2_mode"
         local val = ""; pcall(function() val = params:string(p_id) end)
@@ -298,24 +264,7 @@ function ScreenUI.enc(G, n, d)
                 node.pan = util.clamp((node.pan or 0) + (d * 0.01), -1.0, 1.0)
                 if Matrix.update_node_params then Matrix.update_node_params(node) end
             elseif node.id == 26 then pcall(function() params:delta("m4_clk_thresh", d * ((accel < 1) and 0.1 or 1.0)) end)
-            elseif node.id == 34 then pcall(function() params:delta("m5_gate_thresh", d * ((accel < 1) and 0.1 or 1.0)) end)
-            elseif node.id >= 65 and node.id <= 68 then
-                local m_idx = node.id - 64
-                local mode = params:get("midi_mode_"..m_idx)
-                if mode == 1 then pcall(function() params:delta("midi_oct_"..m_idx, d) end)
-                elseif mode == 3 then pcall(function() params:delta("midi_cc_"..m_idx, d) end) end
-            elseif node.id == 69 then
-                local mode = params:get("clk_mode")
-                if mode == 1 then pcall(function() params:delta("clk_div", d) end)
-                else pcall(function() params:delta("clk_hz", d * ((accel < 1) and 0.1 or 1.0)) end) end
-            end
-        elseif n == 1 then
-            if node.id >= 65 and node.id <= 68 then
-                local m_idx = node.id - 64
-                pcall(function() params:delta("midi_ch_"..m_idx, d) end)
-            elseif node.id == 69 then
-                pcall(function() params:delta("clk_jitter", d * ((accel < 1) and 0.1 or 1.0)) end)
-            end
+            elseif node.id == 34 then pcall(function() params:delta("m5_gate_thresh", d * ((accel < 1) and 0.1 or 1.0)) end) end
         end
     elseif G.focus.state == "menu" then
         if not G.focus.module_id or not G.focus.page then return end
@@ -344,33 +293,23 @@ end
 
 function ScreenUI.key(G, n, z)
     if z == 1 then
-        if G.focus.state == "in" or G.focus.state == "out" then
+        if G.focus.state == "in" then
             if not G.focus.node_x or not G.focus.node_y then return end
             local node = G.grid_map[G.focus.node_x] and G.grid_map[G.focus.node_x][G.focus.node_y]
-            if node then
+            if node and n == 2 then
                 local p_id = nil
-                if n == 2 then
-                    if node.id == 42 then p_id = "m6_cv2_mode"
-                    elseif node.id == 50 then p_id = "m7_cv2_mode"
-                    elseif node.id == 19 then p_id = "m3_pv1_mode"
-                    elseif node.id == 20 then p_id = "m3_pv2_mode"
-                    elseif node.id == 17 then p_id = "m3_fm1_mode"
-                    elseif node.id == 18 then p_id = "m3_fm2_mode"
-                    elseif node.id == 57 then p_id = "m8_cv_dest_l"
-                    elseif node.id == 58 then p_id = "m8_cv_dest_r"
-                    elseif node.id >= 65 and node.id <= 68 then p_id = "midi_mode_"..(node.id - 64)
-                    elseif node.id == 69 then p_id = "clk_mode" end
-                elseif n == 3 then
-                    if node.id >= 65 and node.id <= 68 then p_id = "midi_pol_"..(node.id - 64) end
-                end
-                
+                if node.id == 42 then p_id = "m6_cv2_mode"
+                elseif node.id == 50 then p_id = "m7_cv2_mode"
+                elseif node.id == 19 then p_id = "m3_pv1_mode"
+                elseif node.id == 20 then p_id = "m3_pv2_mode"
+                elseif node.id == 17 then p_id = "m3_fm1_mode"
+                elseif node.id == 18 then p_id = "m3_fm2_mode"
+                elseif node.id == 57 then p_id = "m8_cv_dest_l"
+                elseif node.id == 58 then p_id = "m8_cv_dest_r" end
                 if p_id then
                     pcall(function()
-                        local p = params.params[params.lookup[p_id]]
-                        if p and p.options then
-                            local current = params:get(p_id)
-                            params:set(p_id, current == #p.options and 1 or current + 1)
-                        end
+                        local current = params:get(p_id)
+                        params:set(p_id, current == 1 and 2 or 1)
                     end)
                 end
             end
@@ -388,7 +327,8 @@ function ScreenUI.key(G, n, z)
                     local p_idx = params.lookup[target_param]
                     if p_idx then
                         local p = params.params[p_idx]
-                        if p.type == "trigger" then 
+                        -- FIX: Norns usa p.t == 4 para triggers, o lo detectamos por el ID
+                        if p.t == 4 or string.find(target_param, "ping") then 
                             params:set(target_param, 1)
                             if target_param == "m6_ping" then ScreenUI.ping_flash[6] = util.time() end
                             if target_param == "m7_ping" then ScreenUI.ping_flash[7] = util.time() end
