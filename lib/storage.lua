@@ -195,42 +195,46 @@ function Storage.load_snapshot(G, snap_id)
                 for p_id, end_val in pairs(target.params) do
                     local start_val = start_params[p_id]
                     if start_val ~= end_val then
-                        local p_obj = params:lookup_param(p_id)
-                        if p_obj and p_obj.type == "control" then
-                            local current_val
-                            if string.find(p_id, "tune") or string.find(p_id, "cutoff") then
-                                current_val = start_val * math.pow(end_val / start_val, progress)
-                            else
-                                current_val = start_val + ((end_val - start_val) * progress)
-                            end
-                            params:set(p_id, current_val)
-                            
-                            -- Sincronizar UI en tiempo real
-                            if string.find(p_id, "node_lvl_") then
-                                local n_id = tonumber(string.sub(p_id, 10))
-                                if G.nodes[n_id] then G.nodes[n_id].level = current_val end
-                            elseif string.find(p_id, "node_pan_") then
-                                local n_id = tonumber(string.sub(p_id, 10))
-                                if G.nodes[n_id] then G.nodes[n_id].pan = current_val end
+                        -- FIX: Uso de la API oficial de Norns
+                        local p_idx = params.lookup[p_id]
+                        if p_idx then
+                            local p_obj = params.params[p_idx]
+                            if p_obj and p_obj.type == "control" then
+                                local current_val
+                                if string.find(p_id, "tune") or string.find(p_id, "cutoff") then
+                                    -- Interpolación Exponencial para Frecuencias
+                                    current_val = start_val * math.pow(end_val / start_val, progress)
+                                else
+                                    -- Interpolación Lineal
+                                    current_val = start_val + ((end_val - start_val) * progress)
+                                end
+                                params:set(p_id, current_val)
+                                
+                                -- Sincronizar UI en tiempo real
+                                if string.find(p_id, "node_lvl_") then
+                                    local n_id = tonumber(string.sub(p_id, 10))
+                                    if G.nodes[n_id] then G.nodes[n_id].level = current_val end
+                                elseif string.find(p_id, "node_pan_") then
+                                    local n_id = tonumber(string.sub(p_id, 10))
+                                    if G.nodes[n_id] then G.nodes[n_id].pan = current_val end
+                                end
                             end
                         end
                     end
                 end
                 
-                -- CROSSFADE DE MATRIZ (2 Fases)
+                -- CROSSFADE DE MATRIZ (Simultáneo 0-100%)
                 for dst_id = 1, 64 do
                     for src_id = 1, 64 do
                         local start_active = start_patch[src_id][dst_id].active
                         local end_active = target.patch[src_id][dst_id].active
                         
                         if start_active and not end_active then
-                            -- Fase 1: Fade Out (0% a 50%)
-                            local fade = util.clamp(1.0 - (progress * 2.0), 0.0, 1.0)
-                            engine.patch_set(dst_id, src_id, fade)
+                            -- Fade Out
+                            engine.patch_set(dst_id, src_id, 1.0 - progress)
                         elseif not start_active and end_active then
-                            -- Fase 2: Fade In (50% a 100%)
-                            local fade = util.clamp((progress - 0.5) * 2.0, 0.0, 1.0)
-                            engine.patch_set(dst_id, src_id, fade)
+                            -- Fade In
+                            engine.patch_set(dst_id, src_id, progress)
                         end
                     end
                 end
