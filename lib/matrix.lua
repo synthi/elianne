@@ -25,16 +25,20 @@ function Matrix.disconnect(src_id, dst_id, G)
     evaluate_row_pause(dst_id, G)
 end
 
+
 function Matrix.init(G)
-    for dst_id = 1, 64 do
-        local has_active = false
-        for src_id = 1, 69 do
-            if G.patch[src_id] and G.patch[src_id][dst_id] and G.patch[src_id][dst_id].active then
-                engine.patch_set(dst_id, src_id, 1.0)
-                has_active = true
+    -- FIX: Si Storage.load ya está enviando los cables, Matrix.init se salta este paso para evitar Race Condition
+    if not G.pset_loaded then
+        for dst_id = 1, 64 do
+            local has_active = false
+            for src_id = 1, 69 do
+                if G.patch[src_id] and G.patch[src_id][dst_id] and G.patch[src_id][dst_id].active then
+                    engine.patch_set(dst_id, src_id, 1.0)
+                    has_active = true
+                end
             end
+            if has_active then engine.resume_matrix_row(dst_id - 1) else engine.pause_matrix_row(dst_id - 1) end
         end
-        if has_active then engine.resume_matrix_row(dst_id - 1) else engine.pause_matrix_row(dst_id - 1) end
     end
     
     for i = 1, 69 do
