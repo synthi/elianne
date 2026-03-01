@@ -39,8 +39,8 @@ end
 local function clean_str(str) return str and string.gsub(str, " ", "") or "" end
 
 function ScreenUI.draw_idle(G)
-    local GridUI = include('lib/grid_ui')
     
+
     for x = 1, 16 do
         for y = 1, 8 do
             if y == 1 or y == 2 or y == 6 or y == 7 or (y == 8 and x >= 10) then
