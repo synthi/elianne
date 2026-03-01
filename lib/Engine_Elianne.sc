@@ -586,7 +586,7 @@ Engine_Elianne : CroneEngine {
             var val = msg[3];
             
             matrix_state[dst][src] = val;
-            synth_matrix_rows[dst].setn(\gains, matrix_state[dst]); // FIX CRÍTICO: .setn en lugar de .set
+            synth_matrix_rows[dst].set(\gains, matrix_state[dst]); // FIX CRÍTICO: .setn en lugar de .set
         });
         
         this.addCommand("pause_matrix_row", "i", { |msg| synth_matrix_rows[msg[1]].run(false) });
