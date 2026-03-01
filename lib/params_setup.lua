@@ -1,7 +1,6 @@
--- lib/params_setup.lua v0.100
--- CHANGELOG v0.100:
--- 1. DEFAULTS: Attenuverters inician en 0.5. Paneo de Nexus inicia en -1.0 (L) y 1.0 (R).
--- 2. PARAMS: Añadidos m4_clk_thresh y m5_gate_thresh para los comparadores.
+-- lib/params_setup.lua v0.102
+-- CHANGELOG v0.102:
+-- 1. FIX: Límite superior de los filtros 1006 del Nexus ajustado a 18000Hz.
 
 local Params = {}
 
@@ -92,8 +91,8 @@ function Params.init(G)
     params:add{type = "trigger", id = "m7_ping", name = "Manual Ping", action = function() engine.m7_ping() end}
 
     params:add_group("MOD 8: NEXUS", 14)
-    params:add{type = "control", id = "m8_cut_l", name = "Master Cutoff L", controlspec = controlspec.new(20.0, 20000.0, 'exp', 0.01, 20000.0, "Hz"), action = function(x) engine.m8_cut_l(x) end}
-    params:add{type = "control", id = "m8_cut_r", name = "Master Cutoff R", controlspec = controlspec.new(20.0, 20000.0, 'exp', 0.01, 20000.0, "Hz"), action = function(x) engine.m8_cut_r(x) end}
+    params:add{type = "control", id = "m8_cut_l", name = "Master Cutoff L", controlspec = controlspec.new(20.0, 18000.0, 'exp', 0.01, 18000.0, "Hz"), action = function(x) engine.m8_cut_l(x) end}
+    params:add{type = "control", id = "m8_cut_r", name = "Master Cutoff R", controlspec = controlspec.new(20.0, 18000.0, 'exp', 0.01, 18000.0, "Hz"), action = function(x) engine.m8_cut_r(x) end}
     params:add{type = "control", id = "m8_res", name = "Master Resonance", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.0), action = function(x) engine.m8_res(x) end}
     params:add{type = "control", id = "m8_tape_time", name = "Tape Time", controlspec = controlspec.new(0.01, 2.0, 'lin', 0.01, 0.3, "s"), action = function(x) engine.m8_tape_time(x) end}
     params:add{type = "control", id = "m8_tape_fb", name = "Tape Feedback", controlspec = controlspec.new(0.0, 1.2, 'lin', 0.01, 0.4), action = function(x) engine.m8_tape_fb(x) end}
