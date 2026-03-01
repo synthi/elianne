@@ -488,8 +488,13 @@ Engine_Elianne : CroneEngine {
         // COMANDOS OSC (LUA -> SC)
         // =====================================================================
         
-        this.addCommand("patch_row", "iffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", { |msg| 
-            synth_matrix_rows[msg[1]].set(\gains, msg.drop(2));
+        this.addCommand("patch_set", "iif", { |msg| 
+            var dst = msg[1] - 1; 
+            var src = msg[2] - 1;
+            var val = msg[3];
+            
+            matrix_state[dst][src] = val;
+            synth_matrix_rows[dst].set(\gains, matrix_state[dst]);
         });
         
         this.addCommand("pause_matrix_row", "i", { |msg| synth_matrix_rows[msg[1]].run(false) });
