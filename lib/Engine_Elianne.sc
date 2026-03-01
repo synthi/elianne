@@ -1,8 +1,8 @@
-// lib/Engine_Elianne.sc v0.203
+// lib/Engine_Elianne.sc v0.205
 // CHANGELOG v0.203:
 // 1. PHYSICS: Slew Rate Limiting (Op-Amps) y Ebers-Moll Compression inyectados en CVs, vinculados a sys_age.
 // 2. PHYSICS: Compensación de ganancia (10V p-p) en salidas del 1016 (S&H/Noise).
-// 3. DSP: Búfer de cinta NEXUS expandido a 12.0s para soportar 10s de delay + margen de Wow/Flutter.
+// 3. DSP: Búfer de cinta NEXUS expandido a 6s de delay + margen de Wow/Flutter.
 
 Engine_Elianne : CroneEngine {
     var <bus_nodes_tx;
@@ -455,13 +455,13 @@ Engine_Elianne : CroneEngine {
             wow = OnePole.kr(LFNoise2.kr(Rand(0.5, 2.0)) * wow_amt * 0.05, 0.95);
             flutter = LFNoise1.kr(15) * flut_amt * 0.005;
             
-            // Búfer expandido a 12.0s para soportar 10s + Wow/Flutter
-            tape_dt = (tape_time_lag + wow + flutter).clip(0.01, 11.5);
-            tape_raw = DelayC.ar(tape_in, 12.0, tape_dt);
+            // Búfer expandido a 6.2s para soportar 6s + Wow/Flutter
+            tape_dt = (tape_time_lag + wow + flutter).clip(0.01, 6.1);
+            tape_raw = DelayC.ar(tape_in, 6.2, tape_dt);
             tape_sat_sig = (tape_raw + (Delay1.ar(tape_raw) * 0.2)).tanh;
             
-            // Filtro de erosión recalibrado para 10s
-            tape_physics_cutoff = LinExp.kr(tape_time_lag.max(0.01), 0.01, 10.0, 15000, 1000);
+            // Filtro de erosión recalibrado para 6s
+            tape_physics_cutoff = LinExp.kr(tape_time_lag.max(0.01), 0.01, 6.0, 15000, 1500);
             tape_out = LPF.ar(tape_sat_sig, tape_physics_cutoff);
             
             loop_dust_trig = Dust.kr(tape_erosion * 15);
