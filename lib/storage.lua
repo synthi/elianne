@@ -1,29 +1,32 @@
--- lib/storage.lua v0.100
--- CHANGELOG v0.100
--- 1. FIX: Adaptación a la arquitectura de Deltas (patch_set) para carga escalonada.
+-- lib/storage.lua v0.200
+-- CHANGELOG v0.200:
+-- 1. FEATURE: Implementado motor de Morphing a 30Hz (Crossfade de matriz e interpolación de parámetros).
+-- 2. FEATURE: Guardado y carga de la tabla maestra de Snapshots en los Psets.
 
 local Storage = {}
 
+Storage.morph_coroutine = nil
+
 function Storage.get_filename(pset_number)
     local name = string.format("%02d", pset_number)
-    return _path.data .. "elianne/patch_" .. name .. ".data"
+    return _path.data .. "elianne/state_" .. name .. ".data"
 end
 
+-- =====================================================================
+-- GESTIÓN DE PSETS (PERSISTENCIA TOTAL)
+-- =====================================================================
 function Storage.save(G, pset_number)
     if not pset_number then return end
-    
-    if not util.file_exists(_path.data .. "elianne") then
-        os.execute("mkdir -p " .. _path.data .. "elianne/")
-    end
+    if not util.file_exists(_path.data .. "elianne") then os.execute("mkdir -p " .. _path.data .. "elianne/") end
     
     local file = Storage.get_filename(pset_number)
-    
     local data = {
-        patch = G.patch
+        patch = G.patch,
+        snapshots = G.snapshots,
+        active_snap = G.active_snap
     }
-    
     tab.save(data, file)
-    print("ELIANNE: Matriz guardada en PSET " .. pset_number)
+    print("ELIANNE: Estado Total guardado en PSET " .. pset_number)
 end
 
 function Storage.load(G, pset_number)
@@ -32,60 +35,179 @@ function Storage.load(G, pset_number)
     
     if util.file_exists(file) then
         local data = tab.load(file)
-        if data and data.patch then
-            -- 1. SMART CLEAR: Apagar SOLO los cables que están activos AHORA
-            if G.patch then
-                for dst_id = 1, 64 do
-                    for src_id = 1, 64 do
-                        if G.patch[src_id] and G.patch[src_id][dst_id] and G.patch[src_id][dst_id].active then
-                            engine.patch_set(dst_id, src_id, 0.0)
+        if data then
+            -- 1. Restaurar Snapshots
+            if data.snapshots then G.snapshots = data.snapshots end
+            G.active_snap = data.active_snap
+            
+            -- 2. Restaurar Matriz Actual (Smart Clear)
+            if data.patch then
+                if G.patch then
+                    for dst_id = 1, 64 do
+                        for src_id = 1, 64 do
+                            if G.patch[src_id] and G.patch[src_id][dst_id] and G.patch[src_id][dst_id].active then
+                                engine.patch_set(dst_id, src_id, 0.0)
+                            end
                         end
+                        engine.pause_matrix_row(dst_id - 1)
                     end
-                    -- Pausar todas las filas preventivamente
-                    engine.pause_matrix_row(dst_id - 1)
                 end
+                
+                G.patch = data.patch
+                
+                clock.run(function()
+                    for dst_id = 1, 64 do
+                        local has_active = false
+                        for src_id = 1, 64 do
+                            if G.patch[src_id] and G.patch[src_id][dst_id] and G.patch[src_id][dst_id].active then
+                                engine.patch_set(dst_id, src_id, 1.0)
+                                has_active = true
+                                clock.sleep(0.002)
+                            end
+                        end
+                        if has_active then engine.resume_matrix_row(dst_id - 1) end
+                    end
+                    print("ELIANNE: Pset " .. pset_number .. " cargado.")
+                    G.screen_dirty = true
+                end)
             end
-            
-            -- 2. Cargar la nueva topología en memoria
-            G.patch = data.patch
-            
-            -- 3. CASCADE LOAD: Encender SOLO los cables del nuevo Pset
-            clock.run(function()
-                for dst_id = 1, 64 do
-                    local has_active = false
-                    for src_id = 1, 64 do
-                        if G.patch[src_id] and G.patch[src_id][dst_id] and G.patch[src_id][dst_id].active then
-                            engine.patch_set(dst_id, src_id, 1.0)
-                            has_active = true
-                            clock.sleep(0.002) -- Micro-respiro anti-flood
-                        end
-                    end
-                    if has_active then
-                        engine.resume_matrix_row(dst_id - 1)
-                    end
-                end
-                print("ELIANNE: Pset " .. pset_number .. " cargado (Smart Clear aplicado).")
-                G.screen_dirty = true
-            end)
         end
     else
-        print("ELIANNE: No se encontró archivo de matriz para este PSET. Iniciando en blanco.")
-        if not G.patch then G.patch = {} end
-        for src = 1, 64 do
-            if not G.patch[src] then G.patch[src] = {} end
-            for dst = 1, 64 do
-                if not G.patch[src][dst] then G.patch[src][dst] = { active = false, level = 1.0, pan = 0.0 } end
-                G.patch[src][dst].active = false
+        print("ELIANNE: No se encontró archivo de estado para este PSET.")
+    end
+end
+
+-- =====================================================================
+-- GESTIÓN DE SNAPSHOTS (RAM)
+-- =====================================================================
+local function copy_table(obj)
+    if type(obj) ~= 'table' then return obj end
+    local res = {}
+    for k, v in pairs(obj) do res[copy_table(k)] = copy_table(v) end
+    return res
+end
+
+function Storage.save_snapshot(G, snap_id)
+    local snap = G.snapshots[snap_id]
+    snap.patch = copy_table(G.patch)
+    
+    snap.params = {}
+    for _, p in pairs(params.params) do
+        if p.save then
+            snap.params[p.id] = params:get(p.id)
+        end
+    end
+    
+    snap.has_data = true
+    G.active_snap = snap_id
+    print("ELIANNE: Snapshot " .. snap_id .. " guardado.")
+end
+
+function Storage.load_snapshot(G, snap_id)
+    local target = G.snapshots[snap_id]
+    if not target or not target.has_data then return end
+    
+    if Storage.morph_coroutine then clock.cancel(Storage.morph_coroutine) end
+    
+    local morph_time = params:get("morph_time")
+    G.active_snap = snap_id
+    
+    if morph_time <= 0.05 then
+        -- CARGA INSTANTÁNEA
+        for p_id, val in pairs(target.params) do params:set(p_id, val) end
+        
+        for dst_id = 1, 64 do
+            local has_active = false
+            for src_id = 1, 64 do
+                local is_active = target.patch[src_id][dst_id].active
+                G.patch[src_id][dst_id].active = is_active
+                engine.patch_set(dst_id, src_id, is_active and 1.0 or 0.0)
+                if is_active then has_active = true end
             end
+            if has_active then engine.resume_matrix_row(dst_id - 1) else engine.pause_matrix_row(dst_id - 1) end
+        end
+        print("ELIANNE: Snapshot " .. snap_id .. " cargado instantáneamente.")
+        G.screen_dirty = true
+    else
+        -- MOTOR DE MORPHING
+        local start_params = {}
+        for p_id, _ in pairs(target.params) do start_params[p_id] = params:get(p_id) end
+        
+        local start_patch = copy_table(G.patch)
+        local start_time = util.time()
+        
+        -- Pre-activar filas necesarias para el crossfade
+        for dst_id = 1, 64 do
+            local needs_row = false
+            for src_id = 1, 64 do
+                if start_patch[src_id][dst_id].active or target.patch[src_id][dst_id].active then needs_row = true end
+            end
+            if needs_row then engine.resume_matrix_row(dst_id - 1) end
         end
         
-        -- Limpiar matriz en SC
-        for src_id = 1, 64 do
-            for dst_id = 1, 64 do
-                engine.patch_set(dst_id, src_id, 0.0)
+        Storage.morph_coroutine = clock.run(function()
+            print("ELIANNE: Iniciando Morph hacia Snapshot " .. snap_id .. " (" .. morph_time .. "s)")
+            while true do
+                local now = util.time()
+                local progress = (now - start_time) / morph_time
+                
+                if progress >= 1.0 then
+                    -- FINALIZAR MORPH
+                    for p_id, val in pairs(target.params) do params:set(p_id, val) end
+                    for dst_id = 1, 64 do
+                        local has_active = false
+                        for src_id = 1, 64 do
+                            local is_active = target.patch[src_id][dst_id].active
+                            G.patch[src_id][dst_id].active = is_active
+                            engine.patch_set(dst_id, src_id, is_active and 1.0 or 0.0)
+                            if is_active then has_active = true end
+                        end
+                        if not has_active then engine.pause_matrix_row(dst_id - 1) end
+                    end
+                    G.screen_dirty = true
+                    print("ELIANNE: Morph completado.")
+                    break
+                end
+                
+                -- INTERPOLACIÓN DE PARÁMETROS
+                for p_id, end_val in pairs(target.params) do
+                    local start_val = start_params[p_id]
+                    if start_val ~= end_val then
+                        local p_obj = params:lookup_param(p_id)
+                        if p_obj and p_obj.type == "control" then
+                            local current_val
+                            if string.find(p_id, "tune") or string.find(p_id, "cutoff") then
+                                -- Interpolación Exponencial para Frecuencias
+                                current_val = start_val * math.pow(end_val / start_val, progress)
+                            else
+                                -- Interpolación Lineal
+                                current_val = start_val + ((end_val - start_val) * progress)
+                            end
+                            params:set(p_id, current_val)
+                        end
+                    end
+                end
+                
+                -- CROSSFADE DE MATRIZ
+                for dst_id = 1, 64 do
+                    for src_id = 1, 64 do
+                        local start_active = start_patch[src_id][dst_id].active
+                        local end_active = target.patch[src_id][dst_id].active
+                        
+                        if start_active and not end_active then
+                            -- Fade Out
+                            engine.patch_set(dst_id, src_id, 1.0 - progress)
+                        elseif not start_active and end_active then
+                            -- Fade In
+                            engine.patch_set(dst_id, src_id, progress)
+                        end
+                    end
+                end
+                
+                G.screen_dirty = true
+                clock.sleep(1/30) -- 30Hz
             end
-        end
-        G.screen_dirty = true
+        end)
     end
 end
 
