@@ -474,7 +474,7 @@ Engine_Elianne : CroneEngine {
             
             master = filt_sig + (tape_out * tape_mix * (1.0 - tape_mute));
             
-            final_out = Limiter.ar(master * master_vol, -0.11.dbamp);
+            final_out = Limiter.ar((master + (adc * adc_mon)) * master_vol, -0.11.dbamp);
             
             Out.ar(out_ml, final_out[0] * In.kr(lvl_oml));
             Out.ar(out_mr, final_out[1] * In.kr(lvl_omr));
