@@ -159,7 +159,7 @@ Engine_Elianne : CroneEngine {
         }).add;
 
         // =====================================================================
-        // SYNTH 3: ARP 1023 (THE LIVING CORE)
+        // SYNTH 3: ARP 1023 (Limpios, sin VCA Shaper)
         // =====================================================================
         SynthDef(\Elianne_1023, {
             arg in_fm1, in_fm2, in_pv1, in_pv2,
@@ -168,71 +168,68 @@ Engine_Elianne : CroneEngine {
                 lvl_o1, lvl_o2, lvl_i1, lvl_i2,
                 tune1=100, pwm1=0.5, morph1=0, range1=0, pv1_mode=0, fm1_mode=0,
                 tune2=101, pwm2=0.5, morph2=0, range2=0, pv2_mode=0, fm2_mode=0,
-                out3_wave=0, out4_wave=0, phys_bus, shaper_buf;
+                out3_wave=0, out4_wave=0, phys_bus;
                 
-            var sys_age, slew_time;
-            var pink_cv, brown_cv, pink_core, brown_core;
-            var age_p1, age_a1, age_p2, age_a2;
+            var sys_age, noise_floor, slew_time;
+            var age_p1, age_s1, age_a1, age_p2, age_s2, age_a2;
             var fm1_in, fm1_pitch, fm1_morph, pv1, voct1, pwm_mod1, freq1, ph1, rtri1, sqr1, tri1, saw1, pul1, sin1, waves1, mix1, sig_out3;
             var fm2_in, fm2_pitch, fm2_morph, pv2, voct2, pwm_mod2, freq2, ph2, rtri2, sqr2, tri2, saw2, pul2, sin2, waves2, mix2, sig_out4;
             
-            sys_age = In.kr(phys_bus + 0) * 8.0;
+            sys_age = In.kr(phys_bus + 0) * 10.0;
+            noise_floor = LeakDC.ar(BrownNoise.ar(0.00056 + (sys_age * 0.001)), 0.99);
             slew_time = 0.001 + (sys_age * 0.005);
             
-            pink_cv = PinkNoise.ar(0.0001 * (1.0 + (sys_age * 2.0)));
-            brown_cv = LeakDC.ar(BrownNoise.ar(0.0005 * (1.0 + (sys_age * 2.0))), 0.99);
-            pink_core = PinkNoise.ar(0.0005 * (1.0 + (sys_age * 5.0)));
-            brown_core = LeakDC.ar(BrownNoise.ar(0.001 * (1.0 + (sys_age * 5.0))), 0.99);
-            
-            age_p1 = K2A.ar(LFNoise2.kr(0.0127)) * sys_age * 0.0003;
+            age_p1 = K2A.ar(LFNoise2.kr(0.0127)) * sys_age * 0.002;
+            age_s1 = K2A.ar(LFNoise2.kr(0.0181)) * sys_age * 0.05;
             age_a1 = 1.0 - (K2A.ar(LFNoise2.kr(0.0241)).range(0, 0.1) * sys_age);
-            age_p2 = K2A.ar(LFNoise2.kr(0.0139)) * sys_age * 0.0003;
+            age_p2 = K2A.ar(LFNoise2.kr(0.0139)) * sys_age * 0.002;
+            age_s2 = K2A.ar(LFNoise2.kr(0.0193)) * sys_age * 0.05;
             age_a2 = 1.0 - (K2A.ar(LFNoise2.kr(0.0257)).range(0, 0.1) * sys_age);
             
-            fm1_in = Lag.ar(InFeedback.ar(in_fm1) * In.kr(lvl_fm1) + pink_cv, slew_time);
+            fm1_in = Lag.ar(InFeedback.ar(in_fm1) * In.kr(lvl_fm1), slew_time);
             fm1_pitch = fm1_in * (1 - fm1_mode) * 1000.0; 
             fm1_morph = fm1_in * fm1_mode * 5.0;
             
-            pv1 = Lag.ar(InFeedback.ar(in_pv1) * In.kr(lvl_pv1) + pink_cv, slew_time); 
+            pv1 = Lag.ar(InFeedback.ar(in_pv1) * In.kr(lvl_pv1), slew_time); 
             pv1 = pv1 * (1.0 - (pv1.abs * 0.01 * (1.0 + sys_age))); 
             voct1 = pv1 * pv1_mode * 5.0;
             pwm_mod1 = pv1 * (1 - pv1_mode);
             
-            freq1 = (K2A.ar(Select.kr(range1,[tune1, tune1*0.001])) + fm1_pitch) * (2.0 ** (voct1 + age_p1 + brown_cv));
+            freq1 = (K2A.ar(Select.kr(range1,[tune1, tune1*0.001])) + fm1_pitch) * (2.0 ** (voct1 + age_p1 + noise_floor));
             
             ph1 = Phasor.ar(0, freq1 * SampleDur.ir, 0, 1);
-            rtri1 = (ph1 * 2 - 1).abs * 2 - 1 + (pink_core / 1000) + brown_core;
+            rtri1 = (ph1 * 2 - 1).abs * 2 - 1 + age_s1;
             sqr1 = (ph1 > 0.5) * 2 - 1;
             tri1 = LeakDC.ar(rtri1 + 0.015);
-            saw1 = (ph1 * 2 - 1) + (HPF.ar(Impulse.ar(freq1), 10000) * 0.1) + (pink_core / 1000);
-            pul1 = (tri1 > (((pwm1 + pwm_mod1 + pink_core).clip(0.0, 1.0) * 2) - 1)) * 2 - 1;
+            saw1 = (ph1 * 2 - 1) + (HPF.ar(Impulse.ar(freq1), 10000) * 0.1);
+            pul1 = (tri1 > (((pwm1 + pwm_mod1).clip(0.0, 1.0) * 2) - 1)) * 2 - 1;
             sin1 = (LeakDC.ar(tri1 - (tri1.pow(3) / 6.0)) + (sqr1 * 0.02)) * 1.2;
             
             waves1 =[sin1, tri1, saw1, sqr1, pul1, sin1.neg, tri1, saw1.neg, sqr1, pul1.neg];
-            mix1 = SelectX.ar((morph1 + fm1_morph + brown_core).clip(0,1) * 9.0, waves1) * age_a1;
+            mix1 = SelectX.ar((morph1 + fm1_morph).clip(0,1) * 9.0, waves1) * age_a1;
             sig_out3 = Select.ar(out3_wave,[sin1, tri1, saw1, sqr1, pul1]);
             
-            fm2_in = Lag.ar(InFeedback.ar(in_fm2) * In.kr(lvl_fm2) + pink_cv, slew_time);
+            fm2_in = Lag.ar(InFeedback.ar(in_fm2) * In.kr(lvl_fm2), slew_time);
             fm2_pitch = fm2_in * (1 - fm2_mode) * 1000.0;
             fm2_morph = fm2_in * fm2_mode * 5.0;
             
-            pv2 = Lag.ar(InFeedback.ar(in_pv2) * In.kr(lvl_pv2) + pink_cv, slew_time);
+            pv2 = Lag.ar(InFeedback.ar(in_pv2) * In.kr(lvl_pv2), slew_time);
             pv2 = pv2 * (1.0 - (pv2.abs * 0.01 * (1.0 + sys_age))); 
             voct2 = pv2 * pv2_mode * 5.0;
             pwm_mod2 = pv2 * (1 - pv2_mode);
             
-            freq2 = (K2A.ar(Select.kr(range2,[tune2, tune2*0.001])) + fm2_pitch) * (2.0 ** (voct2 + age_p2 + brown_cv));
+            freq2 = (K2A.ar(Select.kr(range2,[tune2, tune2*0.001])) + fm2_pitch) * (2.0 ** (voct2 + age_p2 + noise_floor));
             
             ph2 = Phasor.ar(0, freq2 * SampleDur.ir, 0, 1);
-            rtri2 = (ph2 * 2 - 1).abs * 2 - 1 + (pink_core / 1000) + brown_core;
+            rtri2 = (ph2 * 2 - 1).abs * 2 - 1 + age_s2;
             sqr2 = (ph2 > 0.5) * 2 - 1;
             tri2 = LeakDC.ar(rtri2 + 0.015);
-            saw2 = (ph2 * 2 - 1) + (HPF.ar(Impulse.ar(freq2), 10000) * 0.1) + (pink_core / 1000);
-            pul2 = (tri2 > (((pwm2 + pwm_mod2 + pink_core).clip(0.0, 1.0) * 2) - 1)) * 2 - 1;
+            saw2 = (ph2 * 2 - 1) + (HPF.ar(Impulse.ar(freq2), 10000) * 0.1);
+            pul2 = (tri2 > (((pwm2 + pwm_mod2).clip(0.0, 1.0) * 2) - 1)) * 2 - 1;
             sin2 = (LeakDC.ar(tri2 - (tri2.pow(3) / 6.0)) + (sqr2 * 0.02)) * 1.2;
             
             waves2 =[sin2, tri2, saw2, sqr2, pul2, sin2.neg, tri2, saw2.neg, sqr2, pul2.neg];
-            mix2 = SelectX.ar((morph2 + fm2_morph + brown_core).clip(0,1) * 9.0, waves2) * age_a2;
+            mix2 = SelectX.ar((morph2 + fm2_morph).clip(0,1) * 9.0, waves2) * age_a2;
             sig_out4 = Select.ar(out4_wave,[sin2, tri2, saw2, sqr2, pul2]);
             
             mix1 = CrossoverDistortion.ar(mix1, 0.01, 0.01);
@@ -240,10 +237,10 @@ Engine_Elianne : CroneEngine {
             sig_out3 = CrossoverDistortion.ar(sig_out3, 0.01, 0.01);
             sig_out4 = CrossoverDistortion.ar(sig_out4, 0.01, 0.01);
             
-            Out.ar(out_o1, Shaper.ar(shaper_buf, mix1.clip(-1.0, 1.0)) * In.kr(lvl_o1));
-            Out.ar(out_o2, Shaper.ar(shaper_buf, mix2.clip(-1.0, 1.0)) * In.kr(lvl_o2));
-            Out.ar(out_i1, Shaper.ar(shaper_buf, sig_out3.clip(-1.0, 1.0)) * In.kr(lvl_i1)); 
-            Out.ar(out_i2, Shaper.ar(shaper_buf, sig_out4.clip(-1.0, 1.0)) * In.kr(lvl_i2)); 
+            Out.ar(out_o1, mix1 * In.kr(lvl_o1));
+            Out.ar(out_o2, mix2 * In.kr(lvl_o2));
+            Out.ar(out_i1, sig_out3 * In.kr(lvl_i1)); 
+            Out.ar(out_i2, sig_out4 * In.kr(lvl_i2)); 
         }).add;
 
         // =====================================================================
