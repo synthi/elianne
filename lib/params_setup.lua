@@ -8,7 +8,7 @@ function Params.init(G)
     params:add_separator("ELIANNE - ARP 2500")
 
     params:add_group("GLOBAL PHYSICS", 2)
-    params:add{type = "control", id = "thermal_drift", name = "System Age", controlspec = controlspec.new(0.0, 0.1, 'lin', 0.001, 0.01), action = function(x) if G.booting then return end; engine.set_global_physics("thermal", x) end}
+    params:add{type = "control", id = "thermal_drift", name = "System Age", controlspec = controlspec.new(0.0, 0.5, 'lin', 0.001, 0.01), action = function(x) if G.booting then return end; engine.set_global_physics("thermal", x) end}
     params:add{type = "control", id = "morph_time", name = "Morph Time", controlspec = controlspec.new(0.0, 120.0, 'lin', 0.1, 1.0, "s")}
 
     params:add_group("MOD 1: 1004-P (A)", 10)
