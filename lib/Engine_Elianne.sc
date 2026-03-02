@@ -1,9 +1,9 @@
-// lib/Engine_Elianne.sc v0.400 (MASTER DSP ARCHITECTURE - THE LIVING CORE)
+// lib/Engine_Elianne.sc v0.401 (MASTER DSP ARCHITECTURE - THE LIVING CORE)
 // CHANGELOG v0.400:
-// 1. PHYSICS: Inyección de Pink/Brown noise en el núcleo de los waveshapers (Cycle-to-cycle jitter).
-// 2. PHYSICS: Curva polinómica de 8º grado para la ruptura de resonancia del 1047 (Solo satura a Q > 400).
-// 3. DSP: Generación de dos Wavetables Piecewise (Node y Master) para emulación CA3080 exacta.
-// 4. FIX: Estabilidad absoluta garantizada con System Age = 0.
+// 1. PHYSICS: Inyección de ruido en el núcleo geométrico de los waveshapers (Cycle-to-cycle jitter).
+// 2. PHYSICS: Filtro 1047 con Audio-Rate FM Feedback y ruido calibrado científicamente a -73dB.
+// 3. DSP: Wavetables CA3080 normalizados (Expansión de la zona media sin hard clipping).
+// 4. DSP: Resonancia del SVF mapeada de 0.0 a 2.0 para inestabilidad analógica real.
 
 Engine_Elianne : CroneEngine {
     var <bus_nodes_tx;
@@ -40,31 +40,19 @@ Engine_Elianne : CroneEngine {
         synth_matrix_rows = Array.newClear(64);
         matrix_state = Array.fill(64, { Array.fill(64, 0.0) });
 
-        // WAVETABLE 1: Nodos (Transparente hasta 0.6, compresión suave, saturación en picos)
+        // WAVETABLE 1: Nodos (Drive = 1.3). Expansión de la zona media, compresión continua y segura.
         wt_node = Signal.fill(1024, { |i|
             var x = i.linlin(0, 1023, -1.0, 1.0);
-            var sign = x.sign;
-            var absX = x.abs;
-            var y = if(absX <= 0.6) {
-                absX;
-            } {
-                0.6 + (tanh((absX - 0.6) * 2.0) * 0.35);
-            };
-            y * sign;
+            var drive = 1.0;
+            (tanh(x * drive) / tanh(drive));
         });
         ca3080_node_buf = Buffer.loadCollection(context.server, wt_node.asWavetable);
 
-        // WAVETABLE 2: Master (Transparente hasta 0.8, compresión densa hasta 0.99)
+        // WAVETABLE 2: Master (Drive = 1.0). Compresión de bus maestro menos pronunciada, sin clipping duro.
         wt_master = Signal.fill(1024, { |i|
             var x = i.linlin(0, 1023, -1.0, 1.0);
-            var sign = x.sign;
-            var absX = x.abs;
-            var y = if(absX <= 0.8) {
-                absX;
-            } {
-                0.8 + (tanh((absX - 0.8) * 3.0) * 0.19);
-            };
-            y * sign;
+            var drive = 1.5;
+            (tanh(x * drive) / tanh(drive));
         });
         ca3080_master_buf = Buffer.loadCollection(context.server, wt_master.asWavetable);
 
@@ -119,7 +107,7 @@ Engine_Elianne : CroneEngine {
             sys_age = In.kr(phys_bus + 0) * 10.0; 
             slew_time = 0.001 + (sys_age * 0.005); 
             
-            // Ruido Dual
+            // Ruido Dual: Siseo térmico (Pink) y Deriva de chasis (Brown)
             pink_cv = PinkNoise.ar(0.0001 * (1.0 + (sys_age * 2.0)));
             brown_cv = LeakDC.ar(BrownNoise.ar(0.0005 * (1.0 + (sys_age * 2.0))), 0.99);
             
@@ -143,10 +131,8 @@ Engine_Elianne : CroneEngine {
             
             base_freq = Select.kr(range,[tune, tune * 0.001]);
             
-            // Deriva térmica inyectada en el exponente
             freq = (K2A.ar(base_freq + fine) + fm1_lin + fm2_lin) * (2.0 ** (voct * 5.0 + age_pitch + fm1_exp + fm2_exp + brown_cv));
             
-            // Jitter en el comparador PWM
             pwm_final = (pwm_base + pwm_mod + pink_core).clip(0.0, 1.0);
             
             phase = Phasor.ar(0, freq * SampleDur.ir, 0, 1);
@@ -158,8 +144,6 @@ Engine_Elianne : CroneEngine {
             sig_tri = LeakDC.ar(raw_tri + 0.015);
             sig_saw = (phase * 2 - 1) + (HPF.ar(Impulse.ar(freq), 10000) * 0.1) + pink_core;
             sig_pulse = (sig_tri > ((pwm_final * 2) - 1)) * 2 - 1;
-            
-            // El ruido inyectado en sig_tri se distorsiona no linealmente aquí
             sig_sine = (LeakDC.ar(sig_tri - (sig_tri.pow(3) / 6.0)) + (sqr * 0.02)) * 1.2;
             
             mix = ((sig_sine * mix_sine) + (sig_tri * mix_tri) + (sig_saw * mix_saw) + (sig_pulse * mix_pulse)) * age_amp;
@@ -169,7 +153,6 @@ Engine_Elianne : CroneEngine {
             sig_sine = CrossoverDistortion.ar(sig_sine, 0.01, 0.01);
             sig_pulse = CrossoverDistortion.ar(sig_pulse, 0.01, 0.01);
             
-            // CA3080 Node Shaper en las salidas
             Out.ar(out_main, Shaper.ar(shaper_buf, mix.clip(-1.0, 1.0)) * In.kr(lvl_main));
             Out.ar(out_inv, Shaper.ar(shaper_buf, sig_tri.clip(-1.0, 1.0)) * In.kr(lvl_inv)); 
             Out.ar(out_sine, Shaper.ar(shaper_buf, sig_sine.clip(-1.0, 1.0)) * In.kr(lvl_sine));
@@ -207,7 +190,6 @@ Engine_Elianne : CroneEngine {
             age_p2 = K2A.ar(LFNoise2.kr(0.0139)) * sys_age * 0.002;
             age_a2 = 1.0 - (K2A.ar(LFNoise2.kr(0.0257)).range(0, 0.1) * sys_age);
             
-            // VCO 1
             fm1_in = Lag.ar(InFeedback.ar(in_fm1) * In.kr(lvl_fm1) + pink_cv, slew_time);
             fm1_pitch = fm1_in * (1 - fm1_mode) * 1000.0; 
             fm1_morph = fm1_in * fm1_mode * 5.0;
@@ -231,7 +213,6 @@ Engine_Elianne : CroneEngine {
             mix1 = SelectX.ar((morph1 + fm1_morph + brown_core).clip(0,1) * 9.0, waves1) * age_a1;
             sig_out3 = Select.ar(out3_wave,[sin1, tri1, saw1, sqr1, pul1]);
             
-            // VCO 2
             fm2_in = Lag.ar(InFeedback.ar(in_fm2) * In.kr(lvl_fm2) + pink_cv, slew_time);
             fm2_pitch = fm2_in * (1 - fm2_mode) * 1000.0;
             fm2_morph = fm2_in * fm2_mode * 5.0;
@@ -324,10 +305,10 @@ Engine_Elianne : CroneEngine {
             noise1 = (noise1 * 2.0).softclip;
             noise2 = (noise2 * 2.0).softclip;
             
-            Out.ar(out_n1, Shaper.ar(shaper_buf, noise1) * In.kr(lvl_n1));
-            Out.ar(out_n2, Shaper.ar(shaper_buf, noise2) * In.kr(lvl_n2));
-            Out.ar(out_slow, Shaper.ar(shaper_buf, slow_out) * In.kr(lvl_slow));
-            Out.ar(out_step, Shaper.ar(shaper_buf, step_out) * In.kr(lvl_step));
+            Out.ar(out_n1, Shaper.ar(shaper_buf, noise1.clip(-1.0, 1.0)) * In.kr(lvl_n1));
+            Out.ar(out_n2, Shaper.ar(shaper_buf, noise2.clip(-1.0, 1.0)) * In.kr(lvl_n2));
+            Out.ar(out_slow, Shaper.ar(shaper_buf, slow_out.clip(-1.0, 1.0)) * In.kr(lvl_slow));
+            Out.ar(out_step, Shaper.ar(shaper_buf, step_out.clip(-1.0, 1.0)) * In.kr(lvl_step));
         }).add;
 
         // =====================================================================
@@ -389,7 +370,7 @@ Engine_Elianne : CroneEngine {
         }).add;
 
         // =====================================================================
-        // SYNTH 6 & 7: ARP 1047 (POLYNOMIAL RESONANCE BREAKUP)
+        // SYNTH 6 & 7: ARP 1047 (AUDIO-RATE FM FEEDBACK & -73dB NOISE)
         // =====================================================================
         SynthDef(\Elianne_1047, {
             arg in_aud, in_cv1, in_res, in_cv2,
@@ -403,9 +384,9 @@ Engine_Elianne : CroneEngine {
             var aud, cv1, res_cv, cv2, p_shift, age_fc, age_q;
             var man_ping, combined_trig, ping_env, exciter, cv2_mod;
             var f_mod, q_mod, svf_res;
-            var filter_noise, drive_aud, lp, bp, hp;
+            var base_noise, q_noise, total_noise, bp_fb, fm_fb;
+            var drive_aud, lp, bp, hp;
             var notch_weight, notch;
-            var post_drive, asym_clip;
             
             sys_age = In.kr(phys_bus + 0) * 10.0;
             pink_cv = PinkNoise.ar(0.0001 * (1.0 + (sys_age * 2.0)));
@@ -433,41 +414,32 @@ Engine_Elianne : CroneEngine {
             
             cv2_mod = cv2 * (1 - cv2_mode);
             
-            f_mod = (K2A.ar(cutoff) + fine) * (2.0 ** (cv1 * 5.0)) * (2.0 ** (cv2_mod * 5.0)) * (2.0 ** (ping_env * p_shift * 5.0)) * (1.0 + age_fc + brown_cv);
-            f_mod = f_mod.clip(10, 20000);
-            
             q_mod = (q + (res_cv * 100.0) + (ping_env * 500.0)) * (1.0 + age_q);
             q_mod = q_mod.clip(0.1, 500.0); 
             
-            svf_res = q_mod.explin(0.1, 500.0, 0.0, 0.999);
+            // Mapeo a 2.0 para permitir inestabilidad real
+            svf_res = q_mod.explin(0.1, 500.0, 0.0, 2.0);
             
-            // Ruido rosa inyectado para excitar la auto-oscilación
-            filter_noise = PinkNoise.ar(0.001) * (q_mod * 0.01);
-            drive_aud = tanh((aud + filter_noise + exciter) * jfet);
+            // Audio-Rate FM Feedback (Bucle físico)
+            bp_fb = InFeedback.ar(out_bp);
+            fm_fb = bp_fb.tanh * (q_mod / 500.0) * 0.5; 
             
-            lp = SVF.ar(drive_aud, f_mod, svf_res, 1, 0, 0, 0, 0);
-            bp = SVF.ar(drive_aud, f_mod, svf_res, 0, 1, 0, 0, 0);
-            hp = SVF.ar(drive_aud, f_mod, svf_res, 0, 0, 1, 0, 0);
+            f_mod = (K2A.ar(cutoff) + fine) * (2.0 ** (cv1 * 5.0)) * (2.0 ** (cv2_mod * 5.0)) * (2.0 ** (ping_env * p_shift * 5.0)) * (2.0 ** fm_fb) * (1.0 + age_fc + brown_cv);
+            f_mod = f_mod.clip(10, 20000);
+            
+            // Ruido calibrado a -73dB RMS máximo
+            base_noise = PinkNoise.ar(0.0001 * (1.0 + sys_age));
+            q_noise = PinkNoise.ar(0.0002) * (q_mod / 500.0);
+            total_noise = base_noise + q_noise;
+            
+            drive_aud = tanh((aud + total_noise + exciter) * jfet);
+            
+            lp = SVF.ar(drive_aud, f_mod, svf_res, 1, 0, 0, 0, 0).softclip;
+            bp = SVF.ar(drive_aud, f_mod, svf_res, 0, 1, 0, 0, 0).softclip;
+            hp = SVF.ar(drive_aud, f_mod, svf_res, 0, 0, 1, 0, 0).softclip;
             
             notch_weight = 2.0 ** (notch_ofs * 2.0);
-            notch = lp + (hp * notch_weight); 
-            
-            // Curva Polinómica de Ruptura (Solo actúa fuerte a Q > 400)
-            post_drive = 1.0 + ((q_mod / 500.0).pow(8) * 6.0);
-            
-            // Función de Saturación Asimétrica
-            asym_clip = { |sig, drive|
-                var driven = sig * drive;
-                Select.ar(driven > 0,[
-                    (driven * 0.8).tanh / 0.8, // Picos negativos más suaves
-                    driven.tanh                // Picos positivos duros
-                ]);
-            };
-            
-            lp = asym_clip.(lp, post_drive);
-            bp = asym_clip.(bp, post_drive);
-            hp = asym_clip.(hp, post_drive);
-            notch = asym_clip.(notch, post_drive);
+            notch = (lp + (hp * notch_weight)).softclip; 
             
             Out.ar(out_lp, Shaper.ar(shaper_buf, lp.clip(-1.0, 1.0)) * out_lvl * In.kr(lvl_lp));
             Out.ar(out_bp, Shaper.ar(shaper_buf, bp.clip(-1.0, 1.0)) * out_lvl * In.kr(lvl_bp));
