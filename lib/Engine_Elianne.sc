@@ -409,7 +409,7 @@ Engine_Elianne : CroneEngine {
             q_mod = (q + (res_cv * 100.0) + (ping_env * 500.0)) * (1.0 + age_q);
             q_mod = q_mod.clip(0.1, 500.0); 
             
-            svf_res = q_mod.explin(0.1, 500.0, 0.0, 2);
+            svf_res = q_mod.explin(0.1, 500.0, 0.0, 0.999);
             
             // Ruido rosa inyectado para excitar la auto-oscilación
             filter_noise = PinkNoise.ar(0.0001) * (q_mod * 0.01);
