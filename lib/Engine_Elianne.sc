@@ -125,7 +125,7 @@ Engine_Elianne : CroneEngine {
             fm2_lin = fm2 * 1000.0 * (1 - fm2_type);
             fm2_exp = fm2 * 5.0 * fm2_type;
             
-            age_pitch = K2A.ar(LFNoise2.kr(0.0113 + seed_offset)) * sys_age * 0.002;
+            age_pitch = K2A.ar(LFNoise2.kr(0.0113 + seed_offset)) * sys_age * 0.0005;
             age_amp = 1.0 - (K2A.ar(LFNoise2.kr(0.0233 + seed_offset)).range(0, 0.1) * sys_age);
             
             base_freq = Select.kr(range,[tune, tune * 0.001]);
@@ -184,9 +184,9 @@ Engine_Elianne : CroneEngine {
             pink_core = PinkNoise.ar(0.0005 * (1.0 + (sys_age * 5.0)));
             brown_core = LeakDC.ar(BrownNoise.ar(0.001 * (1.0 + (sys_age * 5.0))), 0.99);
             
-            age_p1 = K2A.ar(LFNoise2.kr(0.0127)) * sys_age * 0.002;
+            age_p1 = K2A.ar(LFNoise2.kr(0.0127)) * sys_age * 0.0005;
             age_a1 = 1.0 - (K2A.ar(LFNoise2.kr(0.0241)).range(0, 0.1) * sys_age);
-            age_p2 = K2A.ar(LFNoise2.kr(0.0139)) * sys_age * 0.002;
+            age_p2 = K2A.ar(LFNoise2.kr(0.0139)) * sys_age * 0.0006;
             age_a2 = 1.0 - (K2A.ar(LFNoise2.kr(0.0257)).range(0, 0.1) * sys_age);
             
             fm1_in = Lag.ar(InFeedback.ar(in_fm1) * In.kr(lvl_fm1) + pink_cv, slew_time);
@@ -494,8 +494,8 @@ Engine_Elianne : CroneEngine {
             
             sum = (ml + mr) * drive;
             
-            age_vcf_l = K2A.ar(LFNoise2.kr(0.0151)) * sys_age * 0.05;
-            age_vcf_r = K2A.ar(LFNoise2.kr(0.0163)) * sys_age * 0.05;
+            age_vcf_l = K2A.ar(LFNoise2.kr(0.0151)) * sys_age * 0.07;
+            age_vcf_r = K2A.ar(LFNoise2.kr(0.0163)) * sys_age * 0.08;
             
             filt_l = DFM1.ar(sum[0], (cut_l * (1.0 + age_vcf_l + brown_cv)).clip(20, 18000), res, 1.0, 0.0, 0.0005);
             filt_r = DFM1.ar(sum[1], (cut_r * (1.0 + age_vcf_r + brown_cv)).clip(20, 18000), res, 1.0, 0.0, 0.0005);
