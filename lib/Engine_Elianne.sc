@@ -1,4 +1,4 @@
-// lib/Engine_Elianne.sc v0.402 (MASTER DSP ARCHITECTURE - THE LIVING CORE)
+// lib/Engine_Elianne.sc v0.403 (MASTER DSP ARCHITECTURE - THE LIVING CORE)
 // CHANGELOG v0.400:
 // 1. PHYSICS: Inyección de ruido en el núcleo geométrico de los waveshapers (Cycle-to-cycle jitter).
 // 3. DSP: Wavetables CA3080 normalizados (Expansión de la zona media sin hard clipping).
@@ -103,7 +103,7 @@ Engine_Elianne : CroneEngine {
             var base_freq, freq, pwm_final, phase;
             var raw_tri, sqr, sig_tri, sig_saw, sig_pulse, sig_sine, mix;
             
-            sys_age = In.kr(phys_bus + 0) * 10.0; 
+            sys_age = In.kr(phys_bus + 0) * 8.0; 
             slew_time = 0.001 + (sys_age * 0.005); 
             
             // Ruido Dual: Siseo térmico (Pink) y Deriva de chasis (Brown)
@@ -125,7 +125,7 @@ Engine_Elianne : CroneEngine {
             fm2_lin = fm2 * 1000.0 * (1 - fm2_type);
             fm2_exp = fm2 * 5.0 * fm2_type;
             
-            age_pitch = K2A.ar(LFNoise2.kr(0.0113 + seed_offset)) * sys_age * 0.0005;
+            age_pitch = K2A.ar(LFNoise2.kr(0.0113 + seed_offset)) * sys_age * 0.0003;
             age_amp = 1.0 - (K2A.ar(LFNoise2.kr(0.0233 + seed_offset)).range(0, 0.1) * sys_age);
             
             base_freq = Select.kr(range,[tune, tune * 0.001]);
@@ -176,7 +176,7 @@ Engine_Elianne : CroneEngine {
             var fm1_in, fm1_pitch, fm1_morph, pv1, voct1, pwm_mod1, freq1, ph1, rtri1, sqr1, tri1, saw1, pul1, sin1, waves1, mix1, sig_out3;
             var fm2_in, fm2_pitch, fm2_morph, pv2, voct2, pwm_mod2, freq2, ph2, rtri2, sqr2, tri2, saw2, pul2, sin2, waves2, mix2, sig_out4;
             
-            sys_age = In.kr(phys_bus + 0) * 10.0;
+            sys_age = In.kr(phys_bus + 0) * 8.0;
             slew_time = 0.001 + (sys_age * 0.005);
             
             pink_cv = PinkNoise.ar(0.0001 * (1.0 + (sys_age * 2.0)));
@@ -184,9 +184,9 @@ Engine_Elianne : CroneEngine {
             pink_core = PinkNoise.ar(0.0005 * (1.0 + (sys_age * 5.0)));
             brown_core = LeakDC.ar(BrownNoise.ar(0.001 * (1.0 + (sys_age * 5.0))), 0.99);
             
-            age_p1 = K2A.ar(LFNoise2.kr(0.0127)) * sys_age * 0.0005;
+            age_p1 = K2A.ar(LFNoise2.kr(0.0127)) * sys_age * 0.0003;
             age_a1 = 1.0 - (K2A.ar(LFNoise2.kr(0.0241)).range(0, 0.1) * sys_age);
-            age_p2 = K2A.ar(LFNoise2.kr(0.0139)) * sys_age * 0.0006;
+            age_p2 = K2A.ar(LFNoise2.kr(0.0139)) * sys_age * 0.0003;
             age_a2 = 1.0 - (K2A.ar(LFNoise2.kr(0.0257)).range(0, 0.1) * sys_age);
             
             fm1_in = Lag.ar(InFeedback.ar(in_fm1) * In.kr(lvl_fm1) + pink_cv, slew_time);
@@ -387,7 +387,7 @@ Engine_Elianne : CroneEngine {
             var notch_weight, notch;
             var post_drive, asym_clip;
             
-            sys_age = In.kr(phys_bus + 0) * 10.0;
+            sys_age = In.kr(phys_bus + 0) * 8.0;
             pink_cv = PinkNoise.ar(0.0001 * (1.0 + (sys_age * 2.0)));
             brown_cv = LeakDC.ar(BrownNoise.ar(0.0005 * (1.0 + (sys_age * 2.0))), 0.99);
             slew_time = 0.001 + (sys_age * 0.005);
@@ -402,8 +402,8 @@ Engine_Elianne : CroneEngine {
             cv1 = cv1 * (1.0 - (cv1.abs * 0.01 * (1.0 + sys_age)));
             cv2 = cv2 * (1.0 - (cv2.abs * 0.01 * (1.0 + sys_age)));
             
-            age_fc = K2A.ar(LFNoise2.kr(0.0149 + seed_offset)) * sys_age * 0.05;
-            age_q = K2A.ar(LFNoise2.kr(0.0197 + seed_offset)) * sys_age * 0.2;
+            age_fc = K2A.ar(LFNoise2.kr(0.0149 + seed_offset)) * sys_age * 0.005;
+            age_q = K2A.ar(LFNoise2.kr(0.0197 + seed_offset)) * sys_age * 0.1;
             
             man_ping = K2A.ar(t_ping);
             combined_trig = (Schmidt.ar(cv2, 0.5, 0.6) * cv2_mode) + man_ping;
