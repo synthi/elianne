@@ -1,14 +1,15 @@
--- lib/storage.lua v0.205
--- CHANGELOG v0.205:
--- 1. FIX FATAL: Destrucción segura de la corrutina (Storage.morph_coroutine = nil) al cancelar.
--- 2. FIX: Implementado 'current_gain' en G.patch para evitar saltos de audio al interrumpir un Morph.
+-- lib/storage.lua v0.206
+-- CHANGELOG v0.206:
+-- 1. FIX FATAL: Sincronización explícita de OSC (Matrix.update_node_params) durante carga de Snapshots y Morphing.
+-- 2. FIX FATAL: Sincronización explícita de OSC tras la carga de un PSET nativo.
+-- 3. COMPLIANCE: Declaración global de Matrix para evitar includes dinámicos en corrutinas (Regla 11).
 
 local Storage = {}
+local Matrix = include('lib/matrix')
 
 Storage.morph_coroutine = nil
 
-local param_blacklist = {
-    ["morph_time"] = true,["m8_master_vol"] = true
+local param_blacklist = {["morph_time"] = true,["m8_master_vol"] = true
 }
 
 function Storage.get_filename(pset_number)
@@ -63,7 +64,20 @@ function Storage.load(G, pset_number)
                         
                         clock.sleep(0.002)
                     end
-                    print("ELIANNE: Pset " .. pset_number .. " cargado (Array Batching).")
+                    
+                    -- FIX: Sincronización maestra de nodos tras cargar el PSET
+                    for i = 1, 64 do
+                        local node = G.nodes[i]
+                        if node then
+                            node.level = params:get("node_lvl_" .. i)
+                            if node.module == 8 and i >= 55 and i <= 58 then
+                                node.pan = params:get("node_pan_" .. i)
+                            end
+                            Matrix.update_node_params(node)
+                        end
+                    end
+                    
+                    print("ELIANNE: Pset " .. pset_number .. " cargado (Array Batching + Node Sync).")
                     G.screen_dirty = true
                 end)
             end
@@ -103,7 +117,6 @@ function Storage.load_snapshot(G, snap_id)
     local target = G.snapshots[snap_id]
     if not target or not target.has_data then return end
     
-    -- FIX FATAL: Destrucción segura del puntero al interrumpir
     if Storage.morph_coroutine then 
         clock.cancel(Storage.morph_coroutine) 
         Storage.morph_coroutine = nil
@@ -118,10 +131,16 @@ function Storage.load_snapshot(G, snap_id)
             params:set(p_id, val) 
             if string.find(p_id, "node_lvl_") then
                 local n_id = tonumber(string.sub(p_id, 10))
-                if G.nodes[n_id] then G.nodes[n_id].level = val end
+                if G.nodes[n_id] then 
+                    G.nodes[n_id].level = val 
+                    Matrix.update_node_params(G.nodes[n_id]) -- FIX: Envío OSC
+                end
             elseif string.find(p_id, "node_pan_") then
                 local n_id = tonumber(string.sub(p_id, 10))
-                if G.nodes[n_id] then G.nodes[n_id].pan = val end
+                if G.nodes[n_id] then 
+                    G.nodes[n_id].pan = val 
+                    Matrix.update_node_params(G.nodes[n_id]) -- FIX: Envío OSC
+                end
             end
         end
         
@@ -149,7 +168,6 @@ function Storage.load_snapshot(G, snap_id)
         for src_id = 1, 64 do
             start_patch[src_id] = {}
             for dst_id = 1, 64 do
-                -- Si se interrumpió un morph, usamos el volumen exacto en el que se quedó
                 local current = G.patch[src_id][dst_id].current_gain
                 if not current then current = G.patch[src_id][dst_id].active and 1.0 or 0.0 end
                 start_patch[src_id][dst_id] = current
@@ -178,10 +196,16 @@ function Storage.load_snapshot(G, snap_id)
                         params:set(p_id, val) 
                         if string.find(p_id, "node_lvl_") then
                             local n_id = tonumber(string.sub(p_id, 10))
-                            if G.nodes[n_id] then G.nodes[n_id].level = val end
+                            if G.nodes[n_id] then 
+                                G.nodes[n_id].level = val 
+                                Matrix.update_node_params(G.nodes[n_id]) -- FIX: Envío OSC
+                            end
                         elseif string.find(p_id, "node_pan_") then
                             local n_id = tonumber(string.sub(p_id, 10))
-                            if G.nodes[n_id] then G.nodes[n_id].pan = val end
+                            if G.nodes[n_id] then 
+                                G.nodes[n_id].pan = val 
+                                Matrix.update_node_params(G.nodes[n_id]) -- FIX: Envío OSC
+                            end
                         end
                     end
                     for dst_id = 1, 64 do
@@ -219,10 +243,16 @@ function Storage.load_snapshot(G, snap_id)
                                 
                                 if string.find(p_id, "node_lvl_") then
                                     local n_id = tonumber(string.sub(p_id, 10))
-                                    if G.nodes[n_id] then G.nodes[n_id].level = current_val end
+                                    if G.nodes[n_id] then 
+                                        G.nodes[n_id].level = current_val 
+                                        Matrix.update_node_params(G.nodes[n_id]) -- FIX: Envío OSC
+                                    end
                                 elseif string.find(p_id, "node_pan_") then
                                     local n_id = tonumber(string.sub(p_id, 10))
-                                    if G.nodes[n_id] then G.nodes[n_id].pan = current_val end
+                                    if G.nodes[n_id] then 
+                                        G.nodes[n_id].pan = current_val 
+                                        Matrix.update_node_params(G.nodes[n_id]) -- FIX: Envío OSC
+                                    end
                                 end
                             end
                         end
