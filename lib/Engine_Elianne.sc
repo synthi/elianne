@@ -95,7 +95,7 @@ Engine_Elianne : CroneEngine {
                 mix_sine=1.0, mix_tri=0.0, mix_saw=0.0, mix_pulse=0.0,
                 range=0, fm1_type=0, fm2_type=1, phys_bus, seed_offset=0;
                 
-            var sys_age, noise_floor, slew_time;
+            var sys_age, noise_floor, brown_cv, slew_time;
             var fm1, fm2, pwm_mod, voct;
             var fm1_lin, fm1_exp, fm2_lin, fm2_exp;
             var age_pitch, age_shape, age_amp;
@@ -164,7 +164,7 @@ Engine_Elianne : CroneEngine {
                 tune2=101, pwm2=0.5, morph2=0, range2=0, pv2_mode=0, fm2_mode=0,
                 out3_wave=0, out4_wave=0, phys_bus;
                 
-            var sys_age, noise_floor, slew_time;
+            var sys_age, noise_floor, brown_cv, slew_time;
             var age_p1, age_s1, age_a1, age_p2, age_s2, age_a2;
             var fm1_in, fm1_pitch, fm1_morph, pv1, voct1, pwm_mod1, freq1, ph1, rtri1, sqr1, tri1, saw1, pul1, sin1, waves1, mix1, sig_out3;
             var fm2_in, fm2_pitch, fm2_morph, pv2, voct2, pwm_mod2, freq2, ph2, rtri2, sqr2, tri2, saw2, pul2, sin2, waves2, mix2, sig_out4;
