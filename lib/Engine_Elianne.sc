@@ -181,8 +181,8 @@ Engine_Elianne : CroneEngine {
             
             pink_cv = PinkNoise.ar(0.0001 * (1.0 + (sys_age * 2.0)));
             brown_cv = LeakDC.ar(BrownNoise.ar(0.0005 * (1.0 + (sys_age * 2.0))), 0.99);
-            pink_core = PinkNoise.ar(0.0005 * (1.0 + (sys_age * 5.0)));
-            brown_core = LeakDC.ar(BrownNoise.ar(0.001 * (1.0 + (sys_age * 5.0))), 0.99);
+            pink_core = PinkNoise.ar(0.0005 * (0.1 + (sys_age * 5.0)));
+            brown_core = LeakDC.ar(BrownNoise.ar(0.001 * (0.1 + (sys_age * 5.0))), 0.99);
             
             age_p1 = K2A.ar(LFNoise2.kr(0.0127)) * sys_age * 0.0003;
             age_a1 = 1.0 - (K2A.ar(LFNoise2.kr(0.0241)).range(0, 0.1) * sys_age);
