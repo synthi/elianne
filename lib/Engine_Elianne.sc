@@ -181,8 +181,8 @@ Engine_Elianne : CroneEngine {
             
             pink_cv = PinkNoise.ar(0.0001 * (1.0 + (sys_age * 2.0)));
             brown_cv = LeakDC.ar(BrownNoise.ar(0.0005 * (1.0 + (sys_age * 2.0))), 0.99);
-            pink_core = PinkNoise.ar(0.0005 * (0.1 + (sys_age * 5.0)));
-            brown_core = LeakDC.ar(BrownNoise.ar(0.001 * (0.1 + (sys_age * 5.0))), 0.99);
+            pink_core = PinkNoise.ar(0.0005 * (1.0 + (sys_age * 5.0)));
+            brown_core = LeakDC.ar(BrownNoise.ar(0.001 * (1.0 + (sys_age * 5.0))), 0.99);
             
             age_p1 = K2A.ar(LFNoise2.kr(0.0127)) * sys_age * 0.0003;
             age_a1 = 1.0 - (K2A.ar(LFNoise2.kr(0.0241)).range(0, 0.1) * sys_age);
@@ -201,7 +201,7 @@ Engine_Elianne : CroneEngine {
             freq1 = (K2A.ar(Select.kr(range1,[tune1, tune1*0.001])) + fm1_pitch) * (2.0 ** (voct1 + age_p1 + brown_cv));
             
             ph1 = Phasor.ar(0, freq1 * SampleDur.ir, 0, 1);
-            rtri1 = (ph1 * 2 - 1).abs * 2 - 1 + pink_core + brown_core;
+            rtri1 = (ph1 * 2 - 1).abs * 2 - 1 + (pink_core / 100) + brown_core;
             sqr1 = (ph1 > 0.5) * 2 - 1;
             tri1 = LeakDC.ar(rtri1 + 0.015);
             saw1 = (ph1 * 2 - 1) + (HPF.ar(Impulse.ar(freq1), 10000) * 0.1) + pink_core;
@@ -224,7 +224,7 @@ Engine_Elianne : CroneEngine {
             freq2 = (K2A.ar(Select.kr(range2,[tune2, tune2*0.001])) + fm2_pitch) * (2.0 ** (voct2 + age_p2 + brown_cv));
             
             ph2 = Phasor.ar(0, freq2 * SampleDur.ir, 0, 1);
-            rtri2 = (ph2 * 2 - 1).abs * 2 - 1 + pink_core + brown_core;
+            rtri2 = (ph2 * 2 - 1).abs * 2 - 1 + (pink_core / 10) + brown_core;
             sqr2 = (ph2 > 0.5) * 2 - 1;
             tri2 = LeakDC.ar(rtri2 + 0.015);
             saw2 = (ph2 * 2 - 1) + (HPF.ar(Impulse.ar(freq2), 10000) * 0.1) + pink_core;
