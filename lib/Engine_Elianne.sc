@@ -201,10 +201,10 @@ Engine_Elianne : CroneEngine {
             freq1 = (K2A.ar(Select.kr(range1,[tune1, tune1*0.001])) + fm1_pitch) * (2.0 ** (voct1 + age_p1 + brown_cv));
             
             ph1 = Phasor.ar(0, freq1 * SampleDur.ir, 0, 1);
-            rtri1 = (ph1 * 2 - 1).abs * 2 - 1 + (pink_core / 100) + brown_core;
+            rtri1 = (ph1 * 2 - 1).abs * 2 - 1 + (pink_core / 1000) + brown_core;
             sqr1 = (ph1 > 0.5) * 2 - 1;
             tri1 = LeakDC.ar(rtri1 + 0.015);
-            saw1 = (ph1 * 2 - 1) + (HPF.ar(Impulse.ar(freq1), 10000) * 0.1) + pink_core;
+            saw1 = (ph1 * 2 - 1) + (HPF.ar(Impulse.ar(freq1), 10000) * 0.1) + (pink_core / 1000);
             pul1 = (tri1 > (((pwm1 + pwm_mod1 + pink_core).clip(0.0, 1.0) * 2) - 1)) * 2 - 1;
             sin1 = (LeakDC.ar(tri1 - (tri1.pow(3) / 6.0)) + (sqr1 * 0.02)) * 1.2;
             
@@ -224,10 +224,10 @@ Engine_Elianne : CroneEngine {
             freq2 = (K2A.ar(Select.kr(range2,[tune2, tune2*0.001])) + fm2_pitch) * (2.0 ** (voct2 + age_p2 + brown_cv));
             
             ph2 = Phasor.ar(0, freq2 * SampleDur.ir, 0, 1);
-            rtri2 = (ph2 * 2 - 1).abs * 2 - 1 + (pink_core / 10) + brown_core;
+            rtri2 = (ph2 * 2 - 1).abs * 2 - 1 + (pink_core / 1000) + brown_core;
             sqr2 = (ph2 > 0.5) * 2 - 1;
             tri2 = LeakDC.ar(rtri2 + 0.015);
-            saw2 = (ph2 * 2 - 1) + (HPF.ar(Impulse.ar(freq2), 10000) * 0.1) + pink_core;
+            saw2 = (ph2 * 2 - 1) + (HPF.ar(Impulse.ar(freq2), 10000) * 0.1) + (pink_core / 1000);
             pul2 = (tri2 > (((pwm2 + pwm_mod2 + pink_core).clip(0.0, 1.0) * 2) - 1)) * 2 - 1;
             sin2 = (LeakDC.ar(tri2 - (tri2.pow(3) / 6.0)) + (sqr2 * 0.02)) * 1.2;
             
