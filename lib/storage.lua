@@ -1,13 +1,16 @@
--- lib/storage.lua v0.413
--- CHANGELOG v0.413:
--- 1. FIX FATAL: Eliminada la lógica de 2 fases. Implementado True Crossfade lineal simultáneo (0% a 100%).
+-- lib/storage.lua v0.414
+-- CHANGELOG v0.414:
+-- 1. FIX FATAL: Eliminado el bucle de doble disparo OSC (Race Condition) en los Attenuverters.
+-- 2. OPTIMIZACIÓN: Implementado Array Batching (patch_row_set) dentro del bucle de Morphing.
+-- 3. FEATURE: True Crossfade de Matriz (Visuals ON al 0%, Fade lineal simultáneo, Visuals OFF al 100%).
+-- 4. FEATURE: Llamadas a Lag Condicional (set_morph_lag) preparadas y protegidas.
 
 local Storage = {}
 local Matrix = include('lib/matrix')
 
 Storage.morph_coroutine = nil
 
-local param_blacklist = {["morph_time"] = true, ["m8_master_vol"] = true}
+local param_blacklist = {["morph_time"] = true,["m8_master_vol"] = true}
 
 function Storage.get_filename(pset_number)
     local name = string.format("%02d", pset_number)
@@ -178,7 +181,7 @@ function Storage.load_snapshot(G, snap_id)
             if needs_row then engine.resume_matrix_row(dst_id - 1) end
         end
         
-        -- Activar Lag Condicional (0.1s) en SC para evitar Zipper Noise
+        -- Activar Lag Condicional en SC para evitar Zipper Noise (Protegido)
         pcall(function() engine.set_morph_lag(0.1) end)
         
         Storage.morph_coroutine = clock.run(function()
@@ -196,19 +199,22 @@ function Storage.load_snapshot(G, snap_id)
                     
                     for dst_id = 1, 64 do
                         local has_active = false
+                        local row_vals = {}
                         for src_id = 1, 64 do
                             local is_active = target.patch[src_id][dst_id].active
                             
                             -- TRUE CROSSFADE: Apagar visualmente los cables muertos al 100%
                             G.patch[src_id][dst_id].active = is_active
                             G.patch[src_id][dst_id].current_gain = is_active and 1.0 or 0.0
-                            engine.patch_set(dst_id, src_id, is_active and 1.0 or 0.0)
+                            row_vals[src_id] = is_active and 1.0 or 0.0
                             if is_active then has_active = true end
                         end
+                        engine.patch_row_set(dst_id, table.concat(row_vals, ","))
                         if not has_active then engine.pause_matrix_row(dst_id - 1) end
                     end
                     
-                    pcall(function() engine.set_morph_lag(0.0) end) -- Desactivar Lag
+                    -- Desactivar Lag Condicional en SC
+                    pcall(function() engine.set_morph_lag(0.0) end)
                     
                     G.morph_percent = 100
                     G.morph_text_timer = util.time() + 1.0 -- Mantener cartel 1 segundo
@@ -217,7 +223,7 @@ function Storage.load_snapshot(G, snap_id)
                     break
                 end
                 
-                -- INTERPOLACIÓN DE PARÁMETROS
+                -- INTERPOLACIÓN DE PARÁMETROS (Limpia, sin doble disparo)
                 for p_id, end_val in pairs(target.params) do
                     local start_val = start_params[p_id]
                     if start_val and start_val ~= end_val then
@@ -237,22 +243,29 @@ function Storage.load_snapshot(G, snap_id)
                     end
                 end
                 
-                -- CROSSFADE DE MATRIZ (Interpolación Lineal Simultánea Pura)
+                -- CROSSFADE DE MATRIZ (Interpolación Lineal Simultánea con Batching)
                 for dst_id = 1, 64 do
+                    local row_changed = false
+                    local row_vals = {}
+                    
                     for src_id = 1, 64 do
                         local start_val = start_patch[src_id][dst_id]
                         local end_active = target.patch[src_id][dst_id].active
                         local end_val = end_active and 1.0 or 0.0
+                        local current_val = start_val
                         
                         if start_val ~= end_val then
-                            -- Ecuación lineal pura: y = mx + b
-                            local current_val = start_val + ((end_val - start_val) * progress)
-                            
+                            current_val = start_val + ((end_val - start_val) * progress)
                             if G.patch[src_id][dst_id].current_gain ~= current_val then
                                 G.patch[src_id][dst_id].current_gain = current_val
-                                engine.patch_set(dst_id, src_id, current_val)
+                                row_changed = true
                             end
                         end
+                        row_vals[src_id] = G.patch[src_id][dst_id].current_gain
+                    end
+                    
+                    if row_changed then
+                        engine.patch_row_set(dst_id, table.concat(row_vals, ","))
                     end
                 end
                 
