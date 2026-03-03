@@ -1,8 +1,8 @@
--- lib/screen_ui.lua v0.412
--- CHANGELOG v0.412:
+-- lib/screen_ui.lua v0.413
+-- CHANGELOG v0.413:
 -- 1. UI: Cartel dinámico de Morphing con persistencia de 1 segundo.
 -- 2. UI: Controles de ADC Envelope Follower (Mode y Slew) en Nodos 63 y 64.
-
+-- 3. UI: cables con gravedad dinamica
 local ScreenUI = {}
 
 ScreenUI.ping_flash = { [6] = 0, [7] = 0 }
@@ -87,7 +87,7 @@ function ScreenUI.draw_idle(G)
                         local sx2, sy2 = grid_to_screen(dst_node.x, dst_node.y)
                         screen.move(sx1, sy1)
                         local cx = (sx1 + sx2) / 2
-                        local cy = math.max(sy1, sy2) + 10 
+                        local cy = math.max(sy1, sy2) + 25 + (math.abs(sx1 - sx2) * 0.2) 
                         screen.curve(sx1, sy1, cx, cy, sx2, sy2); screen.stroke()
                     end
                 end
