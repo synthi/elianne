@@ -1,7 +1,7 @@
--- lib/screen_ui.lua v0.205
--- CHANGELOG v0.205:
--- 1. UI: Invertidas las páginas A y B de los módulos 1004 (Core a la izquierda, Mixer a la derecha).
--- 2. UI: Barra de nivel en menús contextuales elevada 5 píxeles (y=27).
+-- lib/screen_ui.lua v0.412
+-- CHANGELOG v0.412:
+-- 1. UI: Cartel dinámico de Morphing con persistencia de 1 segundo.
+-- 2. UI: Controles de ADC Envelope Follower (Mode y Slew) en Nodos 63 y 64.
 
 local ScreenUI = {}
 
@@ -54,7 +54,26 @@ function ScreenUI.draw_idle(G)
 
     screen.level(1); screen.move(0, 20); screen.line(128, 20); screen.stroke()
     screen.move(0, 28); screen.line(128, 28); screen.stroke()
-    screen.level(4); screen.move(64, 26); screen.text_center("ELIANNE 2500")
+    
+    -- CARTEL DE MORPHING DINÁMICO
+    local show_morph = false
+    if G.morph_percent and G.morph_percent >= 0 then
+        if G.morph_percent < 100 then
+            show_morph = true
+        elseif G.morph_text_timer and util.time() < G.morph_text_timer then
+            show_morph = true
+        else
+            G.morph_percent = -1
+        end
+    end
+
+    if show_morph then
+        screen.level(15)
+        screen.move(64, 26)
+        screen.text_center(string.format("MORPHING: %d%%", math.floor(G.morph_percent)))
+    else
+        screen.level(4); screen.move(64, 26); screen.text_center("ELIANNE 2500")
+    end
 
     screen.aa(1); screen.level(10)
     if G.patch and G.nodes then
@@ -95,7 +114,6 @@ function ScreenUI.draw_node_menu(G)
     
     screen.level(15)
     local val_px = (node.level or 0) * 50
-    -- Barra de nivel elevada 5 píxeles (y=27)
     if val_px > 0 then screen.rect(64, 27, val_px, 6) else screen.rect(64 + val_px, 27, math.abs(val_px), 6) end
     screen.fill()
     
@@ -115,6 +133,19 @@ function ScreenUI.draw_node_menu(G)
             local w = screen.text_extents(val)
             screen.level(4); screen.move(126 - w - 2, 45); screen.text_right("K2 DEST: ")
         end
+    elseif node.id == 63 or node.id == 64 then
+        -- ADC OUTS: Mode y Slew
+        local p_mode = node.id == 63 and "m8_adc_mode_l" or "m8_adc_mode_r"
+        local val_mode = ""; pcall(function() val_mode = params:string(p_mode) end)
+        screen.level(15); screen.move(126, 45); screen.text_right(val_mode)
+        local w = screen.text_extents(val_mode)
+        screen.level(4); screen.move(126 - w - 2, 45); screen.text_right("K2 MODE: ")
+
+        local val_slew = 0; pcall(function() val_slew = params:get("m8_adc_slew") end)
+        local str_slew = string.format("%.2fs", val_slew)
+        screen.level(15); screen.move(126, 65); screen.text_right(str_slew)
+        local w2 = screen.text_extents(str_slew)
+        screen.level(4); screen.move(126 - w2 - 2, 65); screen.text_right("E2 SLEW: ")
     elseif node.id == 42 or node.id == 50 then
         local p_id = node.id == 42 and "m6_cv2_mode" or "m7_cv2_mode"
         local val = ""; pcall(function() val = params:string(p_id) end)
@@ -278,6 +309,8 @@ function ScreenUI.enc(G, n, d)
             if node.module == 8 and node.type == "in" and (node.id == 55 or node.id == 56) then
                 node.pan = util.clamp((node.pan or 0) + (d * 0.01), -1.0, 1.0)
                 if Matrix.update_node_params then Matrix.update_node_params(node) end
+            elseif node.id == 63 or node.id == 64 then
+                pcall(function() params:delta("m8_adc_slew", d * ((accel < 1) and 0.1 or 1.0)) end)
             elseif node.id == 26 then pcall(function() params:delta("m4_clk_thresh", d * ((accel < 1) and 0.1 or 1.0)) end)
             elseif node.id == 34 then pcall(function() params:delta("m5_gate_thresh", d * ((accel < 1) and 0.1 or 1.0)) end) end
         end
@@ -321,6 +354,8 @@ function ScreenUI.key(G, n, z)
                 elseif node.id == 18 then p_id = "m3_fm2_mode"
                 elseif node.id == 57 then p_id = "m8_cv_dest_l"
                 elseif node.id == 58 then p_id = "m8_cv_dest_r"
+                elseif node.id == 63 then p_id = "m8_adc_mode_l"
+                elseif node.id == 64 then p_id = "m8_adc_mode_r"
                 elseif node.id == 1 then p_id = "m1_fm1_type"
                 elseif node.id == 2 then p_id = "m1_fm2_type"
                 elseif node.id == 9 then p_id = "m2_fm1_type"
