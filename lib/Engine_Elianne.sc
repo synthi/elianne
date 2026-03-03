@@ -1,6 +1,6 @@
-// lib/Engine_Elianne.sc v0.412 (MASTER DSP ARCHITECTURE)
-// CHANGELOG v0.412:
-// 1. FEATURE: Lag Condicional (morph_lag) inyectado en TODOS los parámetros continuos.
+// lib/Engine_Elianne.sc v0.415 (MASTER DSP ARCHITECTURE)
+// CHANGELOG v0.415:
+// 1. ADC monitor fix
 // 2. FEATURE: ADC Envelope Follower con ganancia x5.0 para garantizar 10V p-p de modulación.
 // 3. FIX: Comandos OSC añadidos para el control del ADC y el Lag Condicional.
 
@@ -575,7 +575,9 @@ Engine_Elianne : CroneEngine {
             
             LocalOut.ar(tape_out); 
             
-            master = filt_sig + (tape_out * tape_mix * (1.0 - tape_mute));
+            // Monitor Directo Hardwired (Bypass de matriz)
+            adc = SoundIn.ar([0, 1]) * K2A.ar(adc_mon);
+            master = filt_sig + (tape_out * tape_mix * (1.0 - tape_mute)) + adc;
             
             final_out = Limiter.ar(Shaper.ar(master_shaper_buf, (master * master_vol).clip(-1.0, 1.0)), -0.11.dbamp);
             
