@@ -1,4 +1,4 @@
--- lib/screen_ui.lua v0.413
+-- lib/screen_ui.lua v0.414
 -- CHANGELOG v0.413:
 -- 1. UI: Cartel dinámico de Morphing con persistencia de 1 segundo.
 -- 2. UI: Controles de ADC Envelope Follower (Mode y Slew) en Nodos 63 y 64.
