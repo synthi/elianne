@@ -1,7 +1,8 @@
--- lib/params_setup.lua v0.402
--- CHANGELOG v0.402:
+-- lib/params_setup.lua v0.412
+-- CHANGELOG v0.412:
 -- 1. FEATURE: Attenuverters expuestos en el menú de parámetros y agrupados por módulo.
 -- 2. FIX: Añadida función action a los Attenuverters para sincronización OSC automática.
+-- 3. FEATURE: Añadidos parámetros ADC Mode y Slew al grupo NEXUS.
 
 local Params = {}
 
@@ -139,7 +140,7 @@ function Params.init(G)
     params:add{type = "option", id = "m7_cv2_mode", name = "CV2 Mode", options = {"NORM", "KEYB"}, default = 1, action = function(x) if G.booting then return end; engine.m7_cv2_mode(x - 1) end}
     add_node_params(47, 54)
 
-    params:add_group("MOD 8: NEXUS", 30)
+    params:add_group("MOD 8: NEXUS", 33)
     params:add{type = "control", id = "m8_master_vol", name = "Master Volume", controlspec = controlspec.new(-60.0, 12.0, 'lin', 0.5, 0.0, "dB"), action = function(x) if G.booting then return end; engine.m8_master_vol(math.pow(10, x / 20)) end}
     params:add{type = "control", id = "m8_cut_l", name = "Master Cutoff L", controlspec = controlspec.new(20.0, 18000.0, 'exp', 0.01, 18000.0, "Hz"), action = function(x) if G.booting then return end; engine.m8_cut_l(x) end}
     params:add{type = "control", id = "m8_cut_r", name = "Master Cutoff R", controlspec = controlspec.new(20.0, 18000.0, 'exp', 0.01, 18000.0, "Hz"), action = function(x) if G.booting then return end; engine.m8_cut_r(x) end}
@@ -159,6 +160,12 @@ function Params.init(G)
     params:add{type = "option", id = "m8_tape_mute", name = "Nexus Tape Mute", options = {"PLAY", "MUTE"}, default = 1, action = function(x) if G.booting then return end; engine.m8_tape_mute(x - 1) end}
     params:add{type = "option", id = "m8_cv_dest_l", name = "CV L Dest", options = {"VCA", "PAN"}, default = 1, action = function(x) if G.booting then return end; engine.m8_cv_dest_l(x - 1) end}
     params:add{type = "option", id = "m8_cv_dest_r", name = "CV R Dest", options = {"VCA", "PAN"}, default = 1, action = function(x) if G.booting then return end; engine.m8_cv_dest_r(x - 1) end}
+    
+    -- ADC Envelope Follower Params
+    params:add{type = "option", id = "m8_adc_mode_l", name = "ADC L Mode", options = {"AUDIO", "ENV"}, default = 1, action = function(x) if G.booting then return end; engine.adc_mode_l(x - 1) end}
+    params:add{type = "option", id = "m8_adc_mode_r", name = "ADC R Mode", options = {"AUDIO", "ENV"}, default = 1, action = function(x) if G.booting then return end; engine.adc_mode_r(x - 1) end}
+    params:add{type = "control", id = "m8_adc_slew", name = "ADC Env Slew", controlspec = controlspec.new(0.01, 2.0, 'exp', 0.01, 0.1, "s"), action = function(x) if G.booting then return end; engine.adc_slew(x) end}
+    
     add_node_params(55, 64)
 
     print("ELIANNE: Parámetros Registrados al 100%.")
