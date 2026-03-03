@@ -1,8 +1,8 @@
-// lib/Engine_Elianne.sc v0.411 MASTER DSP ARCHITECTURE
-// CHANGELOG v0.411
-// FIXES
-// 3. DSP: Wavetables CA3080 normalizados (Expansión de la zona media sin hard clipping).
-// 4. DSP: Resonancia del SVF mapeada de 0.0 a 2.0 para inestabilidad analógica real.
+// lib/Engine_Elianne.sc v0.412 (MASTER DSP ARCHITECTURE)
+// CHANGELOG v0.412:
+// 1. FEATURE: Lag Condicional (morph_lag) inyectado en TODOS los parámetros continuos.
+// 2. FEATURE: ADC Envelope Follower con ganancia x5.0 para garantizar 10V p-p de modulación.
+// 3. FIX: Comandos OSC añadidos para el control del ADC y el Lag Condicional.
 
 Engine_Elianne : CroneEngine {
     var <bus_nodes_tx;
@@ -74,17 +74,29 @@ Engine_Elianne : CroneEngine {
             Out.ar(out_bus, sum);
         }).add;
 
+        // =====================================================================
+        // SYNTH ADC (Con Envelope Follower a 10V p-p)
+        // =====================================================================
         SynthDef(\Elianne_ADC, {
-            arg out_l, out_r, lvl_l, lvl_r, shaper_buf;
+            arg out_l, out_r, lvl_l, lvl_r, shaper_buf, mode_l=0, mode_r=0, slew=0.1;
             var adc = SoundIn.ar([0, 1]);
-            var sig_l = Shaper.ar(shaper_buf, (adc[0] * In.kr(lvl_l)).clip(-1.0, 1.0));
-            var sig_r = Shaper.ar(shaper_buf, (adc[1] * In.kr(lvl_r)).clip(-1.0, 1.0));
+            
+            // Gain Staging: * 5.0 asegura que señales de línea alcancen 1.0 (10V p-p)
+            var env_l = (Amplitude.ar(adc[0], 0.01, slew) * 5.0).softclip; 
+            var env_r = (Amplitude.ar(adc[1], 0.01, slew) * 5.0).softclip;
+            
+            var sig_l = Select.ar(K2A.ar(mode_l), [adc[0], env_l]);
+            var sig_r = Select.ar(K2A.ar(mode_r), [adc[1], env_r]);
+            
+            sig_l = Shaper.ar(shaper_buf, (sig_l * In.kr(lvl_l)).clip(-1.0, 1.0));
+            sig_r = Shaper.ar(shaper_buf, (sig_r * In.kr(lvl_r)).clip(-1.0, 1.0));
+            
             Out.ar(out_l, sig_l);
             Out.ar(out_r, sig_r);
         }).add;
 
         // =====================================================================
-        // SYNTH 1 & 2: ARP 1004-P (Limpios, sin VCA Shaper)
+        // SYNTH 1 & 2: ARP 1004-P
         // =====================================================================
         SynthDef(\Elianne_1004T, {
             arg in_fm1, in_fm2, in_pwm, in_voct,
@@ -95,21 +107,36 @@ Engine_Elianne : CroneEngine {
                 mix_sine=1.0, mix_tri=0.0, mix_saw=0.0, mix_pulse=0.0,
                 range=0, fm1_type=0, fm2_type=1, phys_bus, seed_offset=0;
                 
+            var morph_lag = In.kr(phys_bus + 7);
             var sys_age, noise_floor, slew_time;
+            var pink_cv, brown_cv, pink_core, brown_core;
             var fm1, fm2, pwm_mod, voct;
             var fm1_lin, fm1_exp, fm2_lin, fm2_exp;
-            var age_pitch, age_shape, age_amp;
+            var age_pitch, age_amp;
             var base_freq, freq, pwm_final, phase;
             var raw_tri, sqr, sig_tri, sig_saw, sig_pulse, sig_sine, mix;
             
+            // Lag Condicional
+            tune = Lag.kr(tune, morph_lag);
+            fine = Lag.kr(fine, morph_lag);
+            pwm_base = Lag.kr(pwm_base, morph_lag);
+            mix_sine = Lag.kr(mix_sine, morph_lag);
+            mix_tri = Lag.kr(mix_tri, morph_lag);
+            mix_saw = Lag.kr(mix_saw, morph_lag);
+            mix_pulse = Lag.kr(mix_pulse, morph_lag);
+            
             sys_age = In.kr(phys_bus + 0) * 10.0; 
-            noise_floor = LeakDC.ar(BrownNoise.ar(0.00056 + (sys_age * 0.001)), 0.99); 
             slew_time = 0.001 + (sys_age * 0.005); 
             
-            fm1 = Lag.ar(InFeedback.ar(in_fm1) * In.kr(lvl_fm1), slew_time);
-            fm2 = Lag.ar(InFeedback.ar(in_fm2) * In.kr(lvl_fm2), slew_time);
-            pwm_mod = Lag.ar(InFeedback.ar(in_pwm) * In.kr(lvl_pwm) + noise_floor, slew_time);
-            voct = Lag.ar(InFeedback.ar(in_voct) * In.kr(lvl_voct), slew_time); 
+            pink_cv = PinkNoise.ar(0.0001 * (1.0 + (sys_age * 2.0)));
+            brown_cv = LeakDC.ar(BrownNoise.ar(0.0005 * (1.0 + (sys_age * 2.0))), 0.99);
+            pink_core = PinkNoise.ar(0.0005 * (1.0 + (sys_age * 5.0)));
+            brown_core = LeakDC.ar(BrownNoise.ar(0.001 * (1.0 + (sys_age * 5.0))), 0.99);
+            
+            fm1 = Lag.ar(InFeedback.ar(in_fm1) * In.kr(lvl_fm1) + pink_cv, slew_time);
+            fm2 = Lag.ar(InFeedback.ar(in_fm2) * In.kr(lvl_fm2) + pink_cv, slew_time);
+            pwm_mod = Lag.ar(InFeedback.ar(in_pwm) * In.kr(lvl_pwm) + pink_cv, slew_time);
+            voct = Lag.ar(InFeedback.ar(in_voct) * In.kr(lvl_voct) + pink_cv, slew_time); 
             
             voct = voct * (1.0 - (voct.abs * 0.01 * (1.0 + sys_age)));
             
@@ -119,27 +146,26 @@ Engine_Elianne : CroneEngine {
             fm2_exp = fm2 * 5.0 * fm2_type;
             
             age_pitch = K2A.ar(LFNoise2.kr(0.0113 + seed_offset)) * sys_age * 0.002;
-            age_shape = K2A.ar(LFNoise2.kr(0.0171 + seed_offset)) * sys_age * 0.05;
             age_amp = 1.0 - (K2A.ar(LFNoise2.kr(0.0233 + seed_offset)).range(0, 0.1) * sys_age);
             
             base_freq = Select.kr(range,[tune, tune * 0.001]);
             
-            freq = (K2A.ar(base_freq + fine) + fm1_lin + fm2_lin) * (2.0 ** (voct * 5.0 + age_pitch + fm1_exp + fm2_exp + noise_floor));
+            freq = (K2A.ar(base_freq + fine) + fm1_lin + fm2_lin) * (2.0 ** (voct * 5.0 + age_pitch + fm1_exp + fm2_exp + brown_cv));
             
-            pwm_final = (pwm_base + pwm_mod).clip(0.0, 1.0);
+            pwm_final = (pwm_base + pwm_mod + pink_core).clip(0.0, 1.0);
             
             phase = Phasor.ar(0, freq * SampleDur.ir, 0, 1);
-            raw_tri = (phase * 2 - 1).abs * 2 - 1 + age_shape; 
+            
+            raw_tri = (phase * 2 - 1).abs * 2 - 1 + pink_core + brown_core; 
             sqr = (phase > 0.5) * 2 - 1;
             
             sig_tri = LeakDC.ar(raw_tri + 0.015);
-            sig_saw = (phase * 2 - 1) + (HPF.ar(Impulse.ar(freq), 10000) * 0.1);
+            sig_saw = (phase * 2 - 1) + (HPF.ar(Impulse.ar(freq), 10000) * 0.1) + pink_core;
             sig_pulse = (sig_tri > ((pwm_final * 2) - 1)) * 2 - 1;
             sig_sine = (LeakDC.ar(sig_tri - (sig_tri.pow(3) / 6.0)) + (sqr * 0.02)) * 1.2;
             
             mix = ((sig_sine * mix_sine) + (sig_tri * mix_tri) + (sig_saw * mix_saw) + (sig_pulse * mix_pulse)) * age_amp;
             
-            // Solo Crossover Distortion (Op-Amp Grit)
             mix = CrossoverDistortion.ar(mix, 0.01, 0.01);
             sig_tri = CrossoverDistortion.ar(sig_tri, 0.01, 0.01);
             sig_sine = CrossoverDistortion.ar(sig_sine, 0.01, 0.01);
@@ -152,7 +178,7 @@ Engine_Elianne : CroneEngine {
         }).add;
 
         // =====================================================================
-        // SYNTH 3: ARP 1023 (Limpios, sin VCA Shaper)
+        // SYNTH 3: ARP 1023
         // =====================================================================
         SynthDef(\Elianne_1023, {
             arg in_fm1, in_fm2, in_pv1, in_pv2,
@@ -163,66 +189,78 @@ Engine_Elianne : CroneEngine {
                 tune2=101, pwm2=0.5, morph2=0, range2=0, pv2_mode=0, fm2_mode=0,
                 out3_wave=0, out4_wave=0, phys_bus;
                 
-            var sys_age, noise_floor, slew_time;
-            var age_p1, age_s1, age_a1, age_p2, age_s2, age_a2;
+            var morph_lag = In.kr(phys_bus + 7);
+            var sys_age, slew_time;
+            var pink_cv, brown_cv, pink_core, brown_core;
+            var age_p1, age_a1, age_p2, age_a2;
             var fm1_in, fm1_pitch, fm1_morph, pv1, voct1, pwm_mod1, freq1, ph1, rtri1, sqr1, tri1, saw1, pul1, sin1, waves1, mix1, sig_out3;
             var fm2_in, fm2_pitch, fm2_morph, pv2, voct2, pwm_mod2, freq2, ph2, rtri2, sqr2, tri2, saw2, pul2, sin2, waves2, mix2, sig_out4;
             
+            // Lag Condicional
+            tune1 = Lag.kr(tune1, morph_lag);
+            pwm1 = Lag.kr(pwm1, morph_lag);
+            morph1 = Lag.kr(morph1, morph_lag);
+            tune2 = Lag.kr(tune2, morph_lag);
+            pwm2 = Lag.kr(pwm2, morph_lag);
+            morph2 = Lag.kr(morph2, morph_lag);
+            
             sys_age = In.kr(phys_bus + 0) * 10.0;
-            noise_floor = LeakDC.ar(BrownNoise.ar(0.00056 + (sys_age * 0.001)), 0.99);
             slew_time = 0.001 + (sys_age * 0.005);
             
+            pink_cv = PinkNoise.ar(0.0001 * (1.0 + (sys_age * 2.0)));
+            brown_cv = LeakDC.ar(BrownNoise.ar(0.0005 * (1.0 + (sys_age * 2.0))), 0.99);
+            pink_core = PinkNoise.ar(0.0005 * (1.0 + (sys_age * 5.0)));
+            brown_core = LeakDC.ar(BrownNoise.ar(0.001 * (1.0 + (sys_age * 5.0))), 0.99);
+            
             age_p1 = K2A.ar(LFNoise2.kr(0.0127)) * sys_age * 0.002;
-            age_s1 = K2A.ar(LFNoise2.kr(0.0181)) * sys_age * 0.05;
             age_a1 = 1.0 - (K2A.ar(LFNoise2.kr(0.0241)).range(0, 0.1) * sys_age);
             age_p2 = K2A.ar(LFNoise2.kr(0.0139)) * sys_age * 0.002;
-            age_s2 = K2A.ar(LFNoise2.kr(0.0193)) * sys_age * 0.05;
             age_a2 = 1.0 - (K2A.ar(LFNoise2.kr(0.0257)).range(0, 0.1) * sys_age);
             
-            fm1_in = Lag.ar(InFeedback.ar(in_fm1) * In.kr(lvl_fm1), slew_time);
+            fm1_in = Lag.ar(InFeedback.ar(in_fm1) * In.kr(lvl_fm1) + pink_cv, slew_time);
             fm1_pitch = fm1_in * (1 - fm1_mode) * 1000.0; 
             fm1_morph = fm1_in * fm1_mode * 5.0;
             
-            pv1 = Lag.ar(InFeedback.ar(in_pv1) * In.kr(lvl_pv1), slew_time); 
+            pv1 = Lag.ar(InFeedback.ar(in_pv1) * In.kr(lvl_pv1) + pink_cv, slew_time); 
             pv1 = pv1 * (1.0 - (pv1.abs * 0.01 * (1.0 + sys_age))); 
             voct1 = pv1 * pv1_mode * 5.0;
             pwm_mod1 = pv1 * (1 - pv1_mode);
             
-            freq1 = (K2A.ar(Select.kr(range1,[tune1, tune1*0.001])) + fm1_pitch) * (2.0 ** (voct1 + age_p1 + noise_floor));
+            freq1 = (K2A.ar(Select.kr(range1,[tune1, tune1*0.001])) + fm1_pitch) * (2.0 ** (voct1 + age_p1 + brown_cv));
             
             ph1 = Phasor.ar(0, freq1 * SampleDur.ir, 0, 1);
-            rtri1 = (ph1 * 2 - 1).abs * 2 - 1 + age_s1;
+            rtri1 = (ph1 * 2 - 1).abs * 2 - 1 + pink_core + brown_core;
             sqr1 = (ph1 > 0.5) * 2 - 1;
             tri1 = LeakDC.ar(rtri1 + 0.015);
-            saw1 = (ph1 * 2 - 1) + (HPF.ar(Impulse.ar(freq1), 10000) * 0.1);
-            pul1 = (tri1 > (((pwm1 + pwm_mod1).clip(0.0, 1.0) * 2) - 1)) * 2 - 1;
+            saw1 = (ph1 * 2 - 1) + (HPF.ar(Impulse.ar(freq1), 10000) * 0.1) + pink_core;
+            pul1 = (tri1 > (((pwm1 + pwm_mod1 + pink_core).clip(0.0, 1.0) * 2) - 1)) * 2 - 1;
             sin1 = (LeakDC.ar(tri1 - (tri1.pow(3) / 6.0)) + (sqr1 * 0.02)) * 1.2;
             
             waves1 =[sin1, tri1, saw1, sqr1, pul1, sin1.neg, tri1, saw1.neg, sqr1, pul1.neg];
-            mix1 = SelectX.ar((morph1 + fm1_morph).clip(0,1) * 9.0, waves1) * age_a1;
+            mix1 = SelectX.ar((morph1 + fm1_morph + brown_core).clip(0,1) * 9.0, waves1) * age_a1;
             sig_out3 = Select.ar(out3_wave,[sin1, tri1, saw1, sqr1, pul1]);
             
-            fm2_in = Lag.ar(InFeedback.ar(in_fm2) * In.kr(lvl_fm2), slew_time);
+            fm2_in = Lag.ar(InFeedback.ar(in_fm2) * In.kr(lvl_fm2) + pink_cv, slew_time);
             fm2_pitch = fm2_in * (1 - fm2_mode) * 1000.0;
             fm2_morph = fm2_in * fm2_mode * 5.0;
             
-            pv2 = Lag.ar(InFeedback.ar(in_pv2) * In.kr(lvl_pv2), slew_time);
+            pv2 = Lag.ar(InFeedback.ar(in_pv2) * In.kr(lvl_pv2) + pink_cv, slew_time);
             pv2 = pv2 * (1.0 - (pv2.abs * 0.01 * (1.0 + sys_age))); 
             voct2 = pv2 * pv2_mode * 5.0;
             pwm_mod2 = pv2 * (1 - pv2_mode);
             
-            freq2 = (K2A.ar(Select.kr(range2,[tune2, tune2*0.001])) + fm2_pitch) * (2.0 ** (voct2 + age_p2 + noise_floor));
+            freq2 = (K2A.ar(Select.kr(range2,[tune2, tune2*0.001])) + fm2_pitch) * (2.0 ** (voct2 + age_p2 + brown_cv));
             
             ph2 = Phasor.ar(0, freq2 * SampleDur.ir, 0, 1);
-            rtri2 = (ph2 * 2 - 1).abs * 2 - 1 + age_s2;
+            rtri2 = (ph2 * 2 - 1).abs * 2 - 1 + pink_core + brown_core;
             sqr2 = (ph2 > 0.5) * 2 - 1;
             tri2 = LeakDC.ar(rtri2 + 0.015);
-            saw2 = (ph2 * 2 - 1) + (HPF.ar(Impulse.ar(freq2), 10000) * 0.1);
-            pul2 = (tri2 > (((pwm2 + pwm_mod2).clip(0.0, 1.0) * 2) - 1)) * 2 - 1;
+            saw2 = (ph2 * 2 - 1) + (HPF.ar(Impulse.ar(freq2), 10000) * 0.1) + pink_core;
+            pul2 = (tri2 > (((pwm2 + pwm_mod2 + pink_core).clip(0.0, 1.0) * 2) - 1)) * 2 - 1;
             sin2 = (LeakDC.ar(tri2 - (tri2.pow(3) / 6.0)) + (sqr2 * 0.02)) * 1.2;
             
             waves2 =[sin2, tri2, saw2, sqr2, pul2, sin2.neg, tri2, saw2.neg, sqr2, pul2.neg];
-            mix2 = SelectX.ar((morph2 + fm2_morph).clip(0,1) * 9.0, waves2) * age_a2;
+            mix2 = SelectX.ar((morph2 + fm2_morph + brown_core).clip(0,1) * 9.0, waves2) * age_a2;
             sig_out4 = Select.ar(out4_wave,[sin2, tri2, saw2, sqr2, pul2]);
             
             mix1 = CrossoverDistortion.ar(mix1, 0.01, 0.01);
@@ -245,11 +283,21 @@ Engine_Elianne : CroneEngine {
                 slow_rate=0.1, tilt1=0, tilt2=0, type1=0, type2=1,
                 clk_rate=2.0, prob_skew=0, glide=0, clk_thresh=0.1, phys_bus, shaper_buf;
                 
+            var morph_lag = In.kr(phys_bus + 7);
             var sys_age, pink_cv;
             var sig, clk_ext, droop_amt;
             var n_pink, n_white, n_crackle, n_rain, n_lorenz, n_grit;
             var noise1, noise2, clk_int, clk_trig;
             var sh_src, rand_val, skewed, droop_env, step_out, slow_out;
+            
+            // Lag Condicional
+            slow_rate = Lag.kr(slow_rate, morph_lag);
+            tilt1 = Lag.kr(tilt1, morph_lag);
+            tilt2 = Lag.kr(tilt2, morph_lag);
+            clk_rate = Lag.kr(clk_rate, morph_lag);
+            prob_skew = Lag.kr(prob_skew, morph_lag);
+            glide = Lag.kr(glide, morph_lag);
+            clk_thresh = Lag.kr(clk_thresh, morph_lag);
             
             sys_age = In.kr(phys_bus + 0) * 10.0;
             pink_cv = PinkNoise.ar(0.0001 * (1.0 + (sys_age * 2.0)));
@@ -311,11 +359,21 @@ Engine_Elianne : CroneEngine {
                 mod_gain=1, unmod_gain=1, drive=0.2, vca_base=0, vca_resp=0.5,
                 xfade=0.05, state_mode=0, gate_thresh=0.5, phys_bus, shaper_buf;
                 
+            var morph_lag = In.kr(phys_bus + 7);
             var sys_age, pink_cv, slew_time;
             var car, mod, vca_cv, gate_sig, c_bleed, m_bleed, age_rm;
             var hilb_c, hilb_m, sum_sig, diff_sig;
             var rm_raw, rm_sig, gate_trig, state_flip, current_state, state_smooth;
             var core_sig, vca_env, vca_final, final_sig;
+            
+            // Lag Condicional
+            mod_gain = Lag.kr(mod_gain, morph_lag);
+            unmod_gain = Lag.kr(unmod_gain, morph_lag);
+            drive = Lag.kr(drive, morph_lag);
+            vca_base = Lag.kr(vca_base, morph_lag);
+            vca_resp = Lag.kr(vca_resp, morph_lag);
+            xfade = Lag.kr(xfade, morph_lag);
+            gate_thresh = Lag.kr(gate_thresh, morph_lag);
             
             sys_age = In.kr(phys_bus + 0) * 10.0;
             pink_cv = PinkNoise.ar(0.0001 * (1.0 + (sys_age * 2.0)));
@@ -359,7 +417,7 @@ Engine_Elianne : CroneEngine {
         }).add;
 
         // =====================================================================
-        // SYNTH 6 & 7: ARP 1047 (POLYNOMIAL RESONANCE BREAKUP)
+        // SYNTH 6 & 7: ARP 1047
         // =====================================================================
         SynthDef(\Elianne_1047, {
             arg in_aud, in_cv1, in_res, in_cv2,
@@ -369,15 +427,25 @@ Engine_Elianne : CroneEngine {
                 cutoff=1000, fine=0, q=1, notch_ofs=0, final_q=2, out_lvl=1,
                 cv2_mode=0, jfet=1.5, t_ping=0, phys_bus, seed_offset=0, shaper_buf;
                 
+            var morph_lag = In.kr(phys_bus + 7);
             var sys_age, pink_cv, brown_cv, slew_time;
             var aud, cv1, res_cv, cv2, p_shift, age_fc, age_q;
             var man_ping, combined_trig, ping_env, exciter, cv2_mod;
             var f_mod, q_mod, svf_res;
-            var filter_noise, drive_aud, lp, bp, hp;
+            var base_noise, q_noise, total_noise, bp_fb, fm_fb;
+            var drive_aud, lp, bp, hp;
             var notch_weight, notch;
-            var post_drive, asym_clip;
             
-            sys_age = In.kr(phys_bus + 0) * 8.0;
+            // Lag Condicional
+            cutoff = Lag.kr(cutoff, morph_lag);
+            fine = Lag.kr(fine, morph_lag);
+            q = Lag.kr(q, morph_lag);
+            notch_ofs = Lag.kr(notch_ofs, morph_lag);
+            final_q = Lag.kr(final_q, morph_lag);
+            out_lvl = Lag.kr(out_lvl, morph_lag);
+            jfet = Lag.kr(jfet, morph_lag);
+            
+            sys_age = In.kr(phys_bus + 0) * 10.0;
             pink_cv = PinkNoise.ar(0.0001 * (1.0 + (sys_age * 2.0)));
             brown_cv = LeakDC.ar(BrownNoise.ar(0.0005 * (1.0 + (sys_age * 2.0))), 0.99);
             slew_time = 0.001 + (sys_age * 0.005);
@@ -392,8 +460,8 @@ Engine_Elianne : CroneEngine {
             cv1 = cv1 * (1.0 - (cv1.abs * 0.01 * (1.0 + sys_age)));
             cv2 = cv2 * (1.0 - (cv2.abs * 0.01 * (1.0 + sys_age)));
             
-            age_fc = K2A.ar(LFNoise2.kr(0.0149 + seed_offset)) * sys_age * 0.005;
-            age_q = K2A.ar(LFNoise2.kr(0.0197 + seed_offset)) * sys_age * 0.1;
+            age_fc = K2A.ar(LFNoise2.kr(0.0149 + seed_offset)) * sys_age * 0.05;
+            age_q = K2A.ar(LFNoise2.kr(0.0197 + seed_offset)) * sys_age * 0.2;
             
             man_ping = K2A.ar(t_ping);
             combined_trig = (Schmidt.ar(cv2, 0.5, 0.6) * cv2_mode) + man_ping;
@@ -403,41 +471,32 @@ Engine_Elianne : CroneEngine {
             
             cv2_mod = cv2 * (1 - cv2_mode);
             
-            f_mod = (K2A.ar(cutoff) + fine) * (2.0 ** (cv1 * 5.0)) * (2.0 ** (cv2_mod * 5.0)) * (2.0 ** (ping_env * p_shift * 5.0)) * (1.0 + age_fc + brown_cv);
-            f_mod = f_mod.clip(10, 20000);
-            
             q_mod = (q + (res_cv * 100.0) + (ping_env * 500.0)) * (1.0 + age_q);
             q_mod = q_mod.clip(0.1, 500.0); 
             
-            svf_res = q_mod.explin(0.1, 500.0, 0.0, 0.999);
+            // Mapeo a 2.0 para permitir inestabilidad real
+            svf_res = q_mod.explin(0.1, 500.0, 0.0, 2.0);
             
-            // Ruido rosa inyectado para excitar la auto-oscilación
-            filter_noise = PinkNoise.ar(0.0001) * (q_mod * 0.01);
-            drive_aud = tanh((aud + filter_noise + exciter) * jfet);
+            // Audio-Rate FM Feedback (Umbral Exponencial a partir de Q=400)
+            bp_fb = InFeedback.ar(out_bp);
+            fm_fb = bp_fb.tanh * ((q_mod.max(400.0) - 400.0) / 100.0).pow(4) * 0.5; 
             
-            lp = SVF.ar(drive_aud, f_mod, svf_res, 1, 0, 0, 0, 0);
-            bp = SVF.ar(drive_aud, f_mod, svf_res, 0, 1, 0, 0, 0);
-            hp = SVF.ar(drive_aud, f_mod, svf_res, 0, 0, 1, 0, 0);
+            f_mod = (K2A.ar(cutoff) + fine) * (2.0 ** (cv1 * 5.0)) * (2.0 ** (cv2_mod * 5.0)) * (2.0 ** (ping_env * p_shift * 5.0)) * (2.0 ** fm_fb) * (1.0 + age_fc + brown_cv);
+            f_mod = f_mod.clip(10, 20000);
+            
+            // Ruido calibrado a -73dB RMS máximo
+            base_noise = PinkNoise.ar(0.0001 * (1.0 + sys_age));
+            q_noise = PinkNoise.ar(0.0002) * (q_mod / 500.0);
+            total_noise = base_noise + q_noise;
+            
+            drive_aud = tanh((aud + total_noise + exciter) * jfet);
+            
+            lp = SVF.ar(drive_aud, f_mod, svf_res, 1, 0, 0, 0, 0).softclip;
+            bp = SVF.ar(drive_aud, f_mod, svf_res, 0, 1, 0, 0, 0).softclip;
+            hp = SVF.ar(drive_aud, f_mod, svf_res, 0, 0, 1, 0, 0).softclip;
             
             notch_weight = 2.0 ** (notch_ofs * 2.0);
-            notch = lp + (hp * notch_weight); 
-            
-            // Curva Polinómica de Ruptura (Solo actúa fuerte a Q > 400)
-            post_drive = 1.0 + ((q_mod / 500.0).pow(8) * 6.0);
-            
-            // Función de Saturación Asimétrica
-            asym_clip = { |sig, drive|
-                var driven = sig * drive;
-                Select.ar(driven > 0,[
-                    (driven * 0.8).tanh / 0.8, // Picos negativos más suaves
-                    driven.tanh                // Picos positivos duros
-                ]);
-            };
-            
-            lp = asym_clip.(lp, post_drive);
-            bp = asym_clip.(bp, post_drive);
-            hp = asym_clip.(hp, post_drive);
-            notch = asym_clip.(notch, post_drive);
+            notch = (lp + (hp * notch_weight)).softclip; 
             
             Out.ar(out_lp, Shaper.ar(shaper_buf, lp.clip(-1.0, 1.0)) * out_lvl * In.kr(lvl_lp));
             Out.ar(out_bp, Shaper.ar(shaper_buf, bp.clip(-1.0, 1.0)) * out_lvl * In.kr(lvl_bp));
@@ -446,7 +505,7 @@ Engine_Elianne : CroneEngine {
         }).add;
 
         // =====================================================================
-        // SYNTH 8: NEXUS (MASTER SHAPER)
+        // SYNTH 8: NEXUS
         // =====================================================================
         SynthDef(\Elianne_Nexus, {
             arg in_ml, in_mr, in_al, in_ar,
@@ -458,6 +517,7 @@ Engine_Elianne : CroneEngine {
                 filt_byp=0, adc_mon=0, tape_mute=0, drive=1.0, master_vol=1.0, tape_erosion=0.0, 
                 cv_dest_l=0, cv_dest_r=0, phys_bus, shaper_buf, master_shaper_buf;
                 
+            var morph_lag = In.kr(phys_bus + 7);
             var sys_age, pink_cv, brown_cv;
             var cv_l, cv_r, vca_mod_l, vca_mod_r, pan_mod_l, pan_mod_r;
             var ml, mr, adc, al, ar, sum;
@@ -466,6 +526,17 @@ Engine_Elianne : CroneEngine {
             var wow_amt, flut_amt, tape_in, wow, flutter, tape_time_lag, tape_dt, tape_raw, tape_sat_sig, tape_physics_cutoff, tape_out;
             var loop_dust_trig, loop_dropout_env, loop_gain_loss;
             var master, final_out;
+            
+            // Lag Condicional
+            cut_l = Lag.kr(cut_l, morph_lag);
+            cut_r = Lag.kr(cut_r, morph_lag);
+            res = Lag.kr(res, morph_lag);
+            tape_time = Lag.kr(tape_time, morph_lag);
+            tape_fb = Lag.kr(tape_fb, morph_lag);
+            tape_mix = Lag.kr(tape_mix, morph_lag);
+            drive = Lag.kr(drive, morph_lag);
+            master_vol = Lag.kr(master_vol, morph_lag);
+            tape_erosion = Lag.kr(tape_erosion, morph_lag);
             
             sys_age = In.kr(phys_bus + 0) * 10.0;
             pink_cv = PinkNoise.ar(0.0001 * (1.0 + (sys_age * 2.0)));
@@ -476,7 +547,7 @@ Engine_Elianne : CroneEngine {
             
             vca_mod_l = Select.ar(K2A.ar(cv_dest_l),[cv_l * 5.0, DC.ar(0.0)]);
             vca_mod_r = Select.ar(K2A.ar(cv_dest_r),[cv_r * 5.0, DC.ar(0.0)]);
-            pan_mod_l = Select.ar(K2A.ar(cv_dest_l), [DC.ar(0.0), cv_l]);
+            pan_mod_l = Select.ar(K2A.ar(cv_dest_l),[DC.ar(0.0), cv_l]);
             pan_mod_r = Select.ar(K2A.ar(cv_dest_r),[DC.ar(0.0), cv_r]);
             
             ml = Pan2.ar((InFeedback.ar(in_ml) * In.kr(lvl_ml) + pink_cv) * (1.0 + vca_mod_l).clip(0, 2), (In.kr(pan_ml) + pan_mod_l).clip(-1, 1));
@@ -484,8 +555,8 @@ Engine_Elianne : CroneEngine {
             
             sum = (ml + mr) * drive;
             
-            age_vcf_l = K2A.ar(LFNoise2.kr(0.0151)) * sys_age * 0.07;
-            age_vcf_r = K2A.ar(LFNoise2.kr(0.0163)) * sys_age * 0.08;
+            age_vcf_l = K2A.ar(LFNoise2.kr(0.0151)) * sys_age * 0.05;
+            age_vcf_r = K2A.ar(LFNoise2.kr(0.0163)) * sys_age * 0.05;
             
             filt_l = DFM1.ar(sum[0], (cut_l * (1.0 + age_vcf_l + brown_cv)).clip(20, 18000), res, 1.0, 0.0, 0.0005);
             filt_r = DFM1.ar(sum[1], (cut_r * (1.0 + age_vcf_r + brown_cv)).clip(20, 18000), res, 1.0, 0.0, 0.0005);
@@ -515,7 +586,6 @@ Engine_Elianne : CroneEngine {
             
             master = filt_sig + (tape_out * tape_mix * (1.0 - tape_mute));
             
-            // MASTER SHAPER (Curva de Mastering) + Limiter
             final_out = Limiter.ar(Shaper.ar(master_shaper_buf, (master * master_vol).clip(-1.0, 1.0)), -0.11.dbamp);
             
             Out.ar(out_ml, final_out[0] * In.kr(lvl_oml));
@@ -742,6 +812,12 @@ Engine_Elianne : CroneEngine {
         this.addCommand("m8_erosion", "f", { |msg| synth_mods[7].set(\tape_erosion, msg[1]) });
         this.addCommand("m8_cv_dest_l", "i", { |msg| synth_mods[7].set(\cv_dest_l, msg[1]) });
         this.addCommand("m8_cv_dest_r", "i", { |msg| synth_mods[7].set(\cv_dest_r, msg[1]) });
+        
+        // NUEVOS COMANDOS
+        this.addCommand("set_morph_lag", "f", { |msg| bus_physics.setAt(7, msg[1]) });
+        this.addCommand("adc_mode_l", "i", { |msg| synth_adc.set(\mode_l, msg[1]) });
+        this.addCommand("adc_mode_r", "i", { |msg| synth_adc.set(\mode_r, msg[1]) });
+        this.addCommand("adc_slew", "f", { |msg| synth_adc.set(\slew, msg[1]) });
     }
 
     free {
