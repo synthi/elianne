@@ -1,35 +1,26 @@
--- lib/storage.lua v0.206
--- CHANGELOG v0.206:
--- 1. FIX FATAL: Sincronización explícita de OSC (Matrix.update_node_params) durante carga de Snapshots y Morphing.
--- 2. FIX FATAL: Sincronización explícita de OSC tras la carga de un PSET nativo.
--- 3. COMPLIANCE: Declaración global de Matrix para evitar includes dinámicos en corrutinas (Regla 11).
+-- lib/storage.lua v0.402
+-- CHANGELOG v0.402:
+-- 1. FEATURE: Morph de Matriz en 2 Fases (0-50% Fade Out, 50-100% Fade In).
+-- 2. FIX: Eliminada la llamada manual a Matrix.update_node_params (ahora lo gestiona params_setup nativamente).
 
 local Storage = {}
 local Matrix = include('lib/matrix')
 
 Storage.morph_coroutine = nil
 
-local param_blacklist = {["morph_time"] = true,["m8_master_vol"] = true
-}
+local param_blacklist = {["morph_time"] = true,["m8_master_vol"] = true}
 
 function Storage.get_filename(pset_number)
     local name = string.format("%02d", pset_number)
     return _path.data .. "elianne/state_" .. name .. ".data"
 end
 
--- =====================================================================
--- GESTIÓN DE PSETS (PERSISTENCIA TOTAL)
--- =====================================================================
 function Storage.save(G, pset_number)
     if not pset_number then return end
     if not util.file_exists(_path.data .. "elianne") then os.execute("mkdir -p " .. _path.data .. "elianne/") end
     
     local file = Storage.get_filename(pset_number)
-    local data = {
-        patch = G.patch,
-        snapshots = G.snapshots,
-        active_snap = G.active_snap
-    }
+    local data = { patch = G.patch, snapshots = G.snapshots, active_snap = G.active_snap }
     tab.save(data, file)
     print("ELIANNE: Estado Total guardado en PSET " .. pset_number)
 end
@@ -46,38 +37,21 @@ function Storage.load(G, pset_number)
             
             if data.patch then
                 G.patch = data.patch
-                
                 clock.run(function()
                     for dst_id = 1, 64 do
                         local has_active = false
                         local row_vals = {}
-                        
                         for src_id = 1, 64 do
                             local is_active = G.patch[src_id] and G.patch[src_id][dst_id] and G.patch[src_id][dst_id].active
                             G.patch[src_id][dst_id].current_gain = is_active and 1.0 or 0.0
                             row_vals[src_id] = is_active and 1.0 or 0.0
                             if is_active then has_active = true end
                         end
-                        
                         engine.patch_row_set(dst_id, table.concat(row_vals, ","))
                         if has_active then engine.resume_matrix_row(dst_id - 1) else engine.pause_matrix_row(dst_id - 1) end
-                        
                         clock.sleep(0.002)
                     end
-                    
-                    -- FIX: Sincronización maestra de nodos tras cargar el PSET
-                    for i = 1, 64 do
-                        local node = G.nodes[i]
-                        if node then
-                            node.level = params:get("node_lvl_" .. i)
-                            if node.module == 8 and i >= 55 and i <= 58 then
-                                node.pan = params:get("node_pan_" .. i)
-                            end
-                            Matrix.update_node_params(node)
-                        end
-                    end
-                    
-                    print("ELIANNE: Pset " .. pset_number .. " cargado (Array Batching + Node Sync).")
+                    print("ELIANNE: Pset " .. pset_number .. " cargado.")
                     G.screen_dirty = true
                 end)
             end
@@ -87,9 +61,6 @@ function Storage.load(G, pset_number)
     end
 end
 
--- =====================================================================
--- GESTIÓN DE SNAPSHOTS (RAM)
--- =====================================================================
 local function copy_table(obj)
     if type(obj) ~= 'table' then return obj end
     local res = {}
@@ -100,14 +71,12 @@ end
 function Storage.save_snapshot(G, snap_id)
     local snap = G.snapshots[snap_id]
     snap.patch = copy_table(G.patch)
-    
     snap.params = {}
     for _, p in pairs(params.params) do
         if p.save and not param_blacklist[p.id] then
             snap.params[p.id] = params:get(p.id)
         end
     end
-    
     snap.has_data = true
     G.active_snap = snap_id
     print("ELIANNE: Snapshot " .. snap_id .. " guardado.")
@@ -126,21 +95,14 @@ function Storage.load_snapshot(G, snap_id)
     G.active_snap = snap_id
     
     if morph_time <= 0.05 then
-        -- CARGA INSTANTÁNEA
         for p_id, val in pairs(target.params) do 
             params:set(p_id, val) 
             if string.find(p_id, "node_lvl_") then
                 local n_id = tonumber(string.sub(p_id, 10))
-                if G.nodes[n_id] then 
-                    G.nodes[n_id].level = val 
-                    Matrix.update_node_params(G.nodes[n_id]) -- FIX: Envío OSC
-                end
+                if G.nodes[n_id] then G.nodes[n_id].level = val end
             elseif string.find(p_id, "node_pan_") then
                 local n_id = tonumber(string.sub(p_id, 10))
-                if G.nodes[n_id] then 
-                    G.nodes[n_id].pan = val 
-                    Matrix.update_node_params(G.nodes[n_id]) -- FIX: Envío OSC
-                end
+                if G.nodes[n_id] then G.nodes[n_id].pan = val end
             end
         end
         
@@ -157,10 +119,8 @@ function Storage.load_snapshot(G, snap_id)
             engine.patch_row_set(dst_id, table.concat(row_vals, ","))
             if has_active then engine.resume_matrix_row(dst_id - 1) else engine.pause_matrix_row(dst_id - 1) end
         end
-        print("ELIANNE: Snapshot " .. snap_id .. " cargado instantáneamente.")
         G.screen_dirty = true
     else
-        -- MOTOR DE MORPHING (Con State Tracking)
         local start_params = {}
         for p_id, _ in pairs(target.params) do start_params[p_id] = params:get(p_id) end
         
@@ -185,27 +145,19 @@ function Storage.load_snapshot(G, snap_id)
         end
         
         Storage.morph_coroutine = clock.run(function()
-            print("ELIANNE: Iniciando Morph hacia Snapshot " .. snap_id .. " (" .. morph_time .. "s)")
             while true do
                 local now = util.time()
                 local progress = (now - start_time) / morph_time
                 
                 if progress >= 1.0 then
-                    -- FINALIZAR MORPH
                     for p_id, val in pairs(target.params) do 
                         params:set(p_id, val) 
                         if string.find(p_id, "node_lvl_") then
                             local n_id = tonumber(string.sub(p_id, 10))
-                            if G.nodes[n_id] then 
-                                G.nodes[n_id].level = val 
-                                Matrix.update_node_params(G.nodes[n_id]) -- FIX: Envío OSC
-                            end
+                            if G.nodes[n_id] then G.nodes[n_id].level = val end
                         elseif string.find(p_id, "node_pan_") then
                             local n_id = tonumber(string.sub(p_id, 10))
-                            if G.nodes[n_id] then 
-                                G.nodes[n_id].pan = val 
-                                Matrix.update_node_params(G.nodes[n_id]) -- FIX: Envío OSC
-                            end
+                            if G.nodes[n_id] then G.nodes[n_id].pan = val end
                         end
                     end
                     for dst_id = 1, 64 do
@@ -220,12 +172,10 @@ function Storage.load_snapshot(G, snap_id)
                         if not has_active then engine.pause_matrix_row(dst_id - 1) end
                     end
                     G.screen_dirty = true
-                    print("ELIANNE: Morph completado.")
                     Storage.morph_coroutine = nil
                     break
                 end
                 
-                -- INTERPOLACIÓN DE PARÁMETROS
                 for p_id, end_val in pairs(target.params) do
                     local start_val = start_params[p_id]
                     if start_val ~= end_val then
@@ -243,30 +193,44 @@ function Storage.load_snapshot(G, snap_id)
                                 
                                 if string.find(p_id, "node_lvl_") then
                                     local n_id = tonumber(string.sub(p_id, 10))
-                                    if G.nodes[n_id] then 
-                                        G.nodes[n_id].level = current_val 
-                                        Matrix.update_node_params(G.nodes[n_id]) -- FIX: Envío OSC
-                                    end
+                                    if G.nodes[n_id] then G.nodes[n_id].level = current_val end
                                 elseif string.find(p_id, "node_pan_") then
                                     local n_id = tonumber(string.sub(p_id, 10))
-                                    if G.nodes[n_id] then 
-                                        G.nodes[n_id].pan = current_val 
-                                        Matrix.update_node_params(G.nodes[n_id]) -- FIX: Envío OSC
-                                    end
+                                    if G.nodes[n_id] then G.nodes[n_id].pan = current_val end
                                 end
                             end
                         end
                     end
                 end
                 
-                -- CROSSFADE DE MATRIZ (Interpolación Continua sin saltos)
+                -- CROSSFADE DE MATRIZ (2 Fases: 0-50% Fade Out, 50-100% Fade In)
                 for dst_id = 1, 64 do
                     for src_id = 1, 64 do
                         local start_val = start_patch[src_id][dst_id]
-                        local end_val = target.patch[src_id][dst_id].active and 1.0 or 0.0
+                        local end_active = target.patch[src_id][dst_id].active
+                        local current_val = start_val
                         
-                        if start_val ~= end_val then
-                            local current_val = start_val + ((end_val - start_val) * progress)
+                        if start_val == 1.0 and end_active then
+                            current_val = 1.0
+                        elseif start_val == 0.0 and not end_active then
+                            current_val = 0.0
+                        else
+                            if end_active then
+                                if progress < 0.5 then
+                                    current_val = start_val * (1.0 - (progress * 2.0))
+                                else
+                                    current_val = (progress - 0.5) * 2.0
+                                end
+                            else
+                                if progress < 0.5 then
+                                    current_val = start_val * (1.0 - (progress * 2.0))
+                                else
+                                    current_val = 0.0
+                                end
+                            end
+                        end
+                        
+                        if G.patch[src_id][dst_id].current_gain ~= current_val then
                             G.patch[src_id][dst_id].current_gain = current_val
                             engine.patch_set(dst_id, src_id, current_val)
                         end
