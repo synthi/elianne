@@ -50,7 +50,7 @@ Engine_Elianne : CroneEngine {
         // WAVETABLE 2: Master (Drive = 1.0). Compresión de bus maestro menos pronunciada, sin clipping duro.
         wt_master = Signal.fill(1024, { |i|
             var x = i.linlin(0, 1023, -1.0, 1.0);
-            var drive = 1.5;
+            var drive = 1.0;
             (tanh(x * drive) / tanh(drive));
         });
         ca3080_master_buf = Buffer.loadCollection(context.server, wt_master.asWavetable);
