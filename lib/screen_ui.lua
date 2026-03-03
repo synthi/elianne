@@ -142,10 +142,8 @@ function ScreenUI.draw_node_menu(G)
         screen.level(4); screen.move(126 - w - 2, 45); screen.text_right("K2 MODE: ")
 
         local val_slew = 0; pcall(function() val_slew = params:get("m8_adc_slew") end)
-        local str_slew = string.format("%.2fs", val_slew)
-        screen.level(15); screen.move(126, 65); screen.text_right(str_slew)
-        local w2 = screen.text_extents(str_slew)
-        screen.level(4); screen.move(126 - w2 - 2, 65); screen.text_right("E2 SLEW: ")
+        screen.level(4); screen.move(10, 55); screen.text("E2 Slew: ")
+        screen.level(15); screen.text(string.format("%.2fs", val_slew))
     elseif node.id == 42 or node.id == 50 then
         local p_id = node.id == 42 and "m6_cv2_mode" or "m7_cv2_mode"
         local val = ""; pcall(function() val = params:string(p_id) end)
