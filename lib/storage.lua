@@ -1,16 +1,13 @@
--- lib/storage.lua v0.414
--- CHANGELOG v0.414:
--- 1. FIX FATAL: Eliminado el bucle de doble disparo OSC (Race Condition) en los Attenuverters.
--- 2. OPTIMIZACIÓN: Implementado Array Batching (patch_row_set) dentro del bucle de Morphing.
--- 3. FEATURE: True Crossfade de Matriz (Visuals ON al 0%, Fade lineal simultáneo, Visuals OFF al 100%).
--- 4. FEATURE: Llamadas a Lag Condicional (set_morph_lag) preparadas y protegidas.
+-- lib/storage.lua v0.415
+-- CHANGELOG v0.415:
+-- 1. FIX FATAL: Corrutina anclada a G.morph_coroutine para evitar "lucha" de parámetros por includes dinámicos.
+-- 2. FEATURE: True Crossfade Lineal (0% a 100% simultáneo para cables nuevos y viejos).
+-- 3. FIX: Escudo params.lookup mantenido para evitar crasheos con PSETs antiguos.
 
 local Storage = {}
 local Matrix = include('lib/matrix')
 
-Storage.morph_coroutine = nil
-
-local param_blacklist = {["morph_time"] = true,["m8_master_vol"] = true}
+local param_blacklist = {["morph_time"] = true, ["m8_master_vol"] = true}
 
 function Storage.get_filename(pset_number)
     local name = string.format("%02d", pset_number)
@@ -116,10 +113,10 @@ function Storage.load_snapshot(G, snap_id)
     local target = G.snapshots[snap_id]
     if not target or not target.has_data then return end
     
-    -- Destrucción segura de la corrutina anterior si se interrumpe
-    if Storage.morph_coroutine then 
-        clock.cancel(Storage.morph_coroutine) 
-        Storage.morph_coroutine = nil
+    -- FIX FATAL: Usamos G.morph_coroutine para que sobreviva a los includes dinámicos
+    if G.morph_coroutine then 
+        clock.cancel(G.morph_coroutine) 
+        G.morph_coroutine = nil
     end
     
     local morph_time = params:get("morph_time")
@@ -181,15 +178,15 @@ function Storage.load_snapshot(G, snap_id)
             if needs_row then engine.resume_matrix_row(dst_id - 1) end
         end
         
-        -- Activar Lag Condicional en SC para evitar Zipper Noise (Protegido)
+        -- Activar Lag Condicional en SC (Protegido por pcall)
         pcall(function() engine.set_morph_lag(0.1) end)
         
-        Storage.morph_coroutine = clock.run(function()
+        G.morph_coroutine = clock.run(function()
             while true do
                 local now = util.time()
                 local progress = (now - start_time) / morph_time
                 
-                G.morph_percent = progress * 100 -- Telemetría para la UI
+                G.morph_percent = progress * 100 
                 
                 if progress >= 1.0 then
                     -- FINALIZAR MORPH
@@ -213,17 +210,16 @@ function Storage.load_snapshot(G, snap_id)
                         if not has_active then engine.pause_matrix_row(dst_id - 1) end
                     end
                     
-                    -- Desactivar Lag Condicional en SC
-                    pcall(function() engine.set_morph_lag(0.0) end)
+                    pcall(function() engine.set_morph_lag(0.0) end) 
                     
                     G.morph_percent = 100
-                    G.morph_text_timer = util.time() + 1.0 -- Mantener cartel 1 segundo
+                    G.morph_text_timer = util.time() + 1.0 
                     G.screen_dirty = true
-                    Storage.morph_coroutine = nil
+                    G.morph_coroutine = nil
                     break
                 end
                 
-                -- INTERPOLACIÓN DE PARÁMETROS (Limpia, sin doble disparo)
+                -- INTERPOLACIÓN DE PARÁMETROS
                 for p_id, end_val in pairs(target.params) do
                     local start_val = start_params[p_id]
                     if start_val and start_val ~= end_val then
@@ -243,7 +239,7 @@ function Storage.load_snapshot(G, snap_id)
                     end
                 end
                 
-                -- CROSSFADE DE MATRIZ (Interpolación Lineal Simultánea con Batching)
+                -- CROSSFADE DE MATRIZ (Interpolación Lineal Simultánea Pura)
                 for dst_id = 1, 64 do
                     local row_changed = false
                     local row_vals = {}
