@@ -1,4 +1,7 @@
--- elianne.lua v0.8.1
+-- elianne.lua v0.500
+-- CHANGELOG v0.500:
+-- 1. FEATURE: Integración completa de 16n Faderbank con Soft-Takeover y Grid-Learn.
+-- 2. FEATURE: Filtro de inercia temporal (50ms) para UI, manteniendo 0ms de latencia en audio.
 -- CHANGELOG v0.8.1:
 -- 1. FIX FATAL: Eliminado pcall en load_dependencies para evitar Pantallas Negras Silenciosas.
 -- 2. FIX FATAL: Restaurado params:bang() protegido por G.booting para restaurar MIDI y evitar UDP Flood.
@@ -9,7 +12,7 @@ print("========================================")
 print("ELIANNE DEBUG: INICIANDO CARGA DE MÓDULOS")
 print("========================================")
 
-local G, GridUI, ScreenUI, Matrix, Params, Storage
+local G, GridUI, ScreenUI, Matrix, Params, Storage, Sixteen
 
 local function load_dependencies()
     G = include('lib/globals')
@@ -24,6 +27,8 @@ local function load_dependencies()
     print("ELIANNE DEBUG: params_setup.lua cargado.")
     Storage = include('lib/storage')
     print("ELIANNE DEBUG: storage.lua cargado.")
+    Sixteen = include('lib/16n')
+    print("ELIANNE DEBUG: 16n.lua cargado.")
 end
 
 -- Carga directa sin pcall. Si falla, crashea en Maiden como exige el protocolo.
@@ -92,7 +97,96 @@ function init()
     end
     screen_metro:start()
     
-    print("ELIANNE DEBUG: 8. Ejecutando params:bang() protegido...")
+    print("ELIANNE DEBUG: 8. Inicializando 16n Faderbank...")
+    -- ANOTACIÓN PARA EL EQUIPO: Callback del 16n con Soft-Takeover y bloqueo de Morphing.
+    Sixteen.init(function(msg)
+        if G.booting then return end
+        
+        -- BLOQUEO CRÍTICO: Si hay Morphing en curso, ignoramos el hardware físicamente.
+        if G.morph_percent and G.morph_percent >= 0 and G.morph_percent < 100 then return end
+
+        local slider_id = Sixteen.cc_2_slider_id(msg.cc)
+        if not slider_id then return end
+
+        local val = msg.val / 127 -- Normalizado 0.0 a 1.0
+
+        -- Cálculo de Inercia Temporal (Filtro Anti-Jitter Visual)
+        local now = util.time()
+        if now - (G.fader_last_move[slider_id] or 0) > 0.2 then
+            G.fader_move_start[slider_id] = now
+        end
+        G.fader_last_move[slider_id] = now
+        
+        local wake_ui = (now - G.fader_move_start[slider_id]) >= 0.05
+
+        -- MODO LEARN: Asignación dinámica desde el Grid
+        if G.learn_mode then
+            if G.last_touched_param then
+                G.fader_map[slider_id] = G.last_touched_param
+                local p_name = G.last_touched_param
+                local p = params.lookup[G.last_touched_param]
+                if p then p_name = params.params[p].name end
+                
+                if wake_ui then
+                    G.ui_text_state.text = "MAPPED: F" .. slider_id .. " -> " .. string.sub(p_name, 1, 10)
+                    G.ui_text_state.level = 15
+                    G.ui_text_state.timer = util.time() + 1.5
+                    G.ui_text_state.is_fader = true
+                    G.screen_dirty = true
+                end
+                
+                -- Auto-enganchar al mapear para feedback inmediato
+                G.fader_latched[slider_id] = true
+            end
+            return
+        end
+
+        -- MODO NORMAL: Soft-Takeover (Catch-up)
+        local param_id = G.fader_map[slider_id]
+        if param_id and params.lookup[param_id] then
+            local current_val = params:get_raw(param_id)
+            local p_name = params.params[params.lookup[param_id]].name
+            local short_name = string.sub(p_name, 1, 10)
+
+            if not G.fader_latched[slider_id] then
+                -- Umbral de enganche (5% de tolerancia)
+                if math.abs(val - current_val) < 0.05 then
+                    G.fader_latched[slider_id] = true
+                else
+                    -- Mostrar flechas direccionales compactas
+                    if wake_ui then
+                        if val < current_val then
+                            G.ui_text_state.text = "[F" .. slider_id .. "] " .. short_name .. " >>>"
+                        else
+                            G.ui_text_state.text = "<<< " .. short_name .. "[F" .. slider_id .. "]"
+                        end
+                        G.ui_text_state.level = 15
+                        G.ui_text_state.timer = util.time() + 1.0
+                        G.ui_text_state.is_fader = true
+                        G.screen_dirty = true
+                    end
+                    return
+                end
+            end
+
+            if G.fader_latched[slider_id] then
+                -- Aplicar valor al motor (0 lag)
+                params:set_raw(param_id, val)
+                
+                -- Mostrar valor actual formateado
+                if wake_ui then
+                    local display_val = params:string(param_id)
+                    G.ui_text_state.text = "[F" .. slider_id .. "] " .. short_name .. ": " .. display_val
+                    G.ui_text_state.level = 15
+                    G.ui_text_state.timer = util.time() + 1.0
+                    G.ui_text_state.is_fader = true
+                    G.screen_dirty = true
+                end
+            end
+        end
+    end)
+    
+    print("ELIANNE DEBUG: 9. Ejecutando params:bang() protegido...")
     params:bang()
     
     -- LIBERACIÓN DEL CANDADO
