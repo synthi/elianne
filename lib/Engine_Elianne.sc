@@ -1,6 +1,6 @@
-// lib/Engine_Elianne.sc v0.415 (MASTER DSP ARCHITECTURE)
+// lib/Engine_Elianne.sc v0.417 (MASTER DSP ARCHITECTURE)
 // CHANGELOG v0.415:
-// 1. ADC monitor fix
+// 1. ADC monitor fix, gain fix, lin fm fix,slew fix, noise gain sh fix
 // 2. FEATURE: ADC Envelope Follower con ganancia x5.0 para garantizar 10V p-p de modulación.
 // 3. FIX: Comandos OSC añadidos para el control del ADC y el Lag Condicional.
 
