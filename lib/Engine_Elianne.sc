@@ -327,7 +327,8 @@ Engine_Elianne : CroneEngine {
             noise2 = BLowShelf.ar(noise2, 1000, 1.0, tilt2 * -12.0);
             noise2 = BHiShelf.ar(noise2, 1000, 1.0, tilt2 * 12.0);
             
-            sh_src = Select.ar(sig > 0.001,[noise1, sig]); 
+            // Pre-amplificación para que el S&H alcance 10V p-p
+            sh_src = Select.ar(sig > 0.001,[(noise1 * 5.0).softclip, sig]);  
             
             rand_val = Latch.ar(sh_src, clk_trig);
             skewed = rand_val.sign * (rand_val.abs ** (2.0 ** prob_skew.neg));
@@ -379,7 +380,7 @@ Engine_Elianne : CroneEngine {
             
             sys_age = In.kr(phys_bus + 0) * 10.0;
             pink_cv = PinkNoise.ar(0.0001 * (1.0 + (sys_age * 2.0)));
-            slew_time = 0.001 + (sys_age * 0.005);
+            slew_time = 0.00002 + (sys_age * 0.00008);
             
             car = InFeedback.ar(in_car) * In.kr(lvl_car) + pink_cv;
             mod = InFeedback.ar(in_mod) * In.kr(lvl_mod) + pink_cv;
@@ -407,7 +408,8 @@ Engine_Elianne : CroneEngine {
             
             core_sig = XFade2.ar(car * unmod_gain * 1.2, rm_sig * mod_gain, state_smooth * 2 - 1);
             
-            vca_env = (vca_base + (vca_cv * 5.0)).clip(0, 1);
+            // Sensibilidad VCA lineal (5V = 100% abierto)
+            vca_env = (vca_base + vca_cv).clip(0, 1);
             vca_final = LinXFade2.ar(vca_env, vca_env.squared, vca_resp * 2 - 1);
             
             final_sig = (core_sig * vca_final * 1.5).clip(-1.0, 1.0);
@@ -450,7 +452,7 @@ Engine_Elianne : CroneEngine {
             sys_age = In.kr(phys_bus + 0) * 10.0;
             pink_cv = PinkNoise.ar(0.0001 * (1.0 + (sys_age * 2.0)));
             brown_cv = LeakDC.ar(BrownNoise.ar(0.0005 * (1.0 + (sys_age * 2.0))), 0.99);
-            slew_time = 0.001 + (sys_age * 0.005);
+            slew_time = 0.00002 + (sys_age * 0.00008);
             
             aud = InFeedback.ar(in_aud) * In.kr(lvl_aud);
             
@@ -473,7 +475,8 @@ Engine_Elianne : CroneEngine {
             
             cv2_mod = cv2 * (1 - cv2_mode);
             
-            q_mod = (q + (res_cv * 100.0) + (ping_env * 500.0)) * (1.0 + age_q);
+            // Sensibilidad CV al 100% (5V = 500 de Q)
+            q_mod = (q + (res_cv * 500.0) + (ping_env * 500.0)) * (1.0 + age_q);
             q_mod = q_mod.clip(0.1, 500.0); 
             
             // Mapeo a 2.0 para permitir inestabilidad real
@@ -547,8 +550,9 @@ Engine_Elianne : CroneEngine {
             cv_l = InFeedback.ar(in_al) * In.kr(lvl_al) + pink_cv;
             cv_r = InFeedback.ar(in_ar) * In.kr(lvl_ar) + pink_cv;
             
-            vca_mod_l = Select.ar(K2A.ar(cv_dest_l),[cv_l * 5.0, DC.ar(0.0)]);
-            vca_mod_r = Select.ar(K2A.ar(cv_dest_r),[cv_r * 5.0, DC.ar(0.0)]);
+            // Sensibilidad VCA lineal (5V = 100% abierto)
+            vca_mod_l = Select.ar(K2A.ar(cv_dest_l),[cv_l, DC.ar(0.0)]);
+            vca_mod_r = Select.ar(K2A.ar(cv_dest_r),[cv_r, DC.ar(0.0)]);
             pan_mod_l = Select.ar(K2A.ar(cv_dest_l),[DC.ar(0.0), cv_l]);
             pan_mod_r = Select.ar(K2A.ar(cv_dest_r),[DC.ar(0.0), cv_r]);
             
