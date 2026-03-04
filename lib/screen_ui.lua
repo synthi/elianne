@@ -1,11 +1,14 @@
--- lib/screen_ui.lua v0.414
+-- lib/screen_ui.lua v0.500
+-- CHANGELOG v0.500:
+-- 1. FEATURE: Renderizador dinámico de texto central con Fade-out matemático.
+-- 2. FEATURE: Intercepción de parámetros para el modo Learn.
 -- CHANGELOG v0.413:
 -- 1. UI: Cartel dinámico de Morphing con persistencia de 1 segundo.
 -- 2. UI: Controles de ADC Envelope Follower (Mode y Slew) en Nodos 63 y 64.
 -- 3. UI: cables con gravedad dinamica
 local ScreenUI = {}
 
-ScreenUI.ping_flash = { [6] = 0, [7] = 0 }
+ScreenUI.ping_flash = {[6] = 0, [7] = 0 }
 
 local MenuDef = {
     [1] = { A = { title = "1004-P (A) CORE", e1 = {id="m1_pwm", name="PWM"}, e2 = {id="m1_tune", name="TUNE"}, e3 = {id="m1_fine", name="FINE"}, k2 = {id="m1_range", name=""} }, B = { title = "1004-P (A) MIXER", e1 = {id="m1_mix_sine", name="SINE"}, e2 = {id="m1_mix_tri", name="TRI"}, e3 = {id="m1_mix_saw", name="SAW"}, e4 = {id="m1_mix_pulse", name="PULSE"} } },
@@ -17,6 +20,21 @@ local MenuDef = {
     [7] = { A = { title = "1047 (B) FILTER", e1 = {id="m7_q", name="RES"}, e2 = {id="m7_cutoff", name="FREQ"}, e3 = {id="m7_fine", name="FINE"}, e4 = {id="m7_jfet", name="DRIVE"}, k2 = {id="m7_ping", name="PING"} }, B = { title = "1047 (B) NOTCH", e1 = {id="m7_p_shift", name="P.SHIFT"}, e2 = {id="m7_notch", name="NOTCH FRQ"}, e3 = {id="m7_final_q", name="KEY DCY"}, k2 = {id="m7_ping", name="PING"} } },
     [8] = { A = { title = "NEXUS MASTER", e1 = {id="m8_res", name="RES"}, e2 = {id="m8_cut_l", name="VCF L"}, e3 = {id="m8_cut_r", name="VCF R"}, k2 = {id="m8_filt_byp", name="FILT"}, k3 = {id="m8_adc_mon", name="ADC"} }, B = { title = "NEXUS TAPE", e1 = {id="m8_tape_mix", name="MIX"}, e2 = {id="m8_tape_time", name="TIME"}, e3 = {id="m8_tape_fb", name="FDBK"}, e4 = {id="m8_wow", name="W&F"}, k2 = {id="m8_tape_sat", name="SAT"}, k3 = {id="m8_tape_mute", name="MUTE"} } }
 }
+
+-- ANOTACIÓN PARA EL EQUIPO: Función helper para registrar el parámetro tocado en modo Learn
+local function register_touch(G, param_id)
+    G.last_touched_param = param_id
+    if G.learn_mode then
+        local p_name = param_id
+        local p = params.lookup[param_id]
+        if p then p_name = params.params[p].name end
+        G.ui_text_state.text = "LEARN: " .. string.sub(p_name, 1, 12)
+        G.ui_text_state.level = 15
+        G.ui_text_state.timer = util.time() + 2.0
+        G.ui_text_state.is_fader = true
+        G.screen_dirty = true
+    end
+end
 
 local function grid_to_screen(x, y) 
     local visual_y = y
@@ -72,7 +90,31 @@ function ScreenUI.draw_idle(G)
         screen.move(64, 26)
         screen.text_center(string.format("MORPHING: %d%%", math.floor(G.morph_percent)))
     else
-        screen.level(4); screen.move(64, 26); screen.text_center("ELIANNE 2500")
+        -- ANOTACIÓN PARA EL EQUIPO: Renderizador de texto UI con Fade-out matemático
+        local now = util.time()
+        if G.ui_text_state.is_fader then
+            if now > G.ui_text_state.timer then
+                -- Fade out: de 15 a 0 en 1 segundo
+                local fade_progress = now - G.ui_text_state.timer
+                if fade_progress >= 1.0 then
+                    G.ui_text_state.is_fader = false
+                    G.ui_text_state.text = "ELIANNE 2500"
+                    G.ui_text_state.level = 4
+                else
+                    G.ui_text_state.level = math.floor(15 * (1.0 - fade_progress))
+                    G.screen_dirty = true -- Forzar redraw continuo durante el fade
+                end
+            else
+                G.ui_text_state.level = 15
+            end
+        else
+            G.ui_text_state.level = 4
+            G.ui_text_state.text = "ELIANNE 2500"
+        end
+        
+        screen.level(math.max(0, G.ui_text_state.level))
+        screen.move(64, 26)
+        screen.text_center(G.ui_text_state.text)
     end
 
     screen.aa(1); screen.level(10)
@@ -134,7 +176,6 @@ function ScreenUI.draw_node_menu(G)
             screen.level(4); screen.move(126 - w - 2, 45); screen.text_right("K2 DEST: ")
         end
     elseif node.id == 63 or node.id == 64 then
-        -- ADC OUTS: Mode y Slew
         local p_mode = node.id == 63 and "m8_adc_mode_l" or "m8_adc_mode_r"
         local val_mode = ""; pcall(function() val_mode = params:string(p_mode) end)
         screen.level(15); screen.move(126, 45); screen.text_right(val_mode)
@@ -290,10 +331,19 @@ function ScreenUI.enc(G, n, d)
     local accel = 1.0; if dt < 0.05 then accel = 5.0 elseif dt > 0.15 then accel = 0.1 end 
 
     if G.focus.state == "idle" then
-        if n == 1 then pcall(function() params:delta("m8_master_vol", d * ((accel < 1) and 0.1 or 1.0)) end)
-        elseif n == 2 then pcall(function() params:set("m8_cut_l", util.clamp(params:get("m8_cut_l") + (d * ((accel < 1) and 0.1 or ((accel > 1) and 100.0 or 10.0))), 20.0, 18000.0)) end)
-        elseif n == 3 then pcall(function() params:set("m8_cut_r", util.clamp(params:get("m8_cut_r") + (d * ((accel < 1) and 0.1 or ((accel > 1) and 100.0 or 10.0))), 20.0, 18000.0)) end)
-        elseif n == 4 then pcall(function() params:delta("m8_tape_mix", d * ((accel < 1) and 0.1 or 1.0)) end) end
+        local target_param = nil
+        if n == 1 then target_param = "m8_master_vol"
+        elseif n == 2 then target_param = "m8_cut_l"
+        elseif n == 3 then target_param = "m8_cut_r"
+        elseif n == 4 then target_param = "m8_tape_mix" end
+        
+        if target_param then
+            register_touch(G, target_param)
+            pcall(function()
+                if n == 1 or n == 4 then params:delta(target_param, d * ((accel < 1) and 0.1 or 1.0))
+                else params:set(target_param, util.clamp(params:get(target_param) + (d * ((accel < 1) and 0.1 or ((accel > 1) and 100.0 or 10.0))), 20.0, 18000.0)) end
+            end)
+        end
     elseif G.focus.state == "in" or G.focus.state == "out" then
         if not G.focus.node_x or not G.focus.node_y then return end
         local node = G.grid_map[G.focus.node_x] and G.grid_map[G.focus.node_x][G.focus.node_y]
@@ -301,16 +351,24 @@ function ScreenUI.enc(G, n, d)
         
         local Matrix = include('lib/matrix') 
         if n == 3 then
+            register_touch(G, "node_lvl_" .. node.id)
             node.level = util.clamp((node.level or 0) + (d * 0.01), -1.0, 1.0)
             if Matrix.update_node_params then Matrix.update_node_params(node) end
         elseif n == 2 then
             if node.module == 8 and node.type == "in" and (node.id == 55 or node.id == 56) then
+                register_touch(G, "node_pan_" .. node.id)
                 node.pan = util.clamp((node.pan or 0) + (d * 0.01), -1.0, 1.0)
                 if Matrix.update_node_params then Matrix.update_node_params(node) end
             elseif node.id == 63 or node.id == 64 then
+                register_touch(G, "m8_adc_slew")
                 pcall(function() params:delta("m8_adc_slew", d * ((accel < 1) and 0.1 or 1.0)) end)
-            elseif node.id == 26 then pcall(function() params:delta("m4_clk_thresh", d * ((accel < 1) and 0.1 or 1.0)) end)
-            elseif node.id == 34 then pcall(function() params:delta("m5_gate_thresh", d * ((accel < 1) and 0.1 or 1.0)) end) end
+            elseif node.id == 26 then 
+                register_touch(G, "m4_clk_thresh")
+                pcall(function() params:delta("m4_clk_thresh", d * ((accel < 1) and 0.1 or 1.0)) end)
+            elseif node.id == 34 then 
+                register_touch(G, "m5_gate_thresh")
+                pcall(function() params:delta("m5_gate_thresh", d * ((accel < 1) and 0.1 or 1.0)) end) 
+            end
         end
     elseif G.focus.state == "menu" then
         if not G.focus.module_id or not G.focus.page then return end
@@ -324,6 +382,7 @@ function ScreenUI.enc(G, n, d)
         elseif n == 4 then target_param = def.e4 and def.e4.id end 
         
         if target_param then
+            register_touch(G, target_param)
             pcall(function()
                 if string.find(target_param, "tune") or string.find(target_param, "cutoff") then
                     params:set(target_param, util.clamp(params:get(target_param) + (d * ((accel < 1) and 0.1 or ((accel > 1) and 10.0 or 1.0))), 0.01, 18000.0))
@@ -362,6 +421,7 @@ function ScreenUI.key(G, n, z)
                 elseif node.id == 24 then p_id = "m3_out4_wave" end
                 
                 if p_id then
+                    register_touch(G, p_id)
                     pcall(function()
                         local p_idx = params.lookup[p_id]
                         if p_idx then
@@ -383,6 +443,7 @@ function ScreenUI.key(G, n, z)
             if n == 3 and def.k3 then target_param = type(def.k3) == "table" and def.k3.id or def.k3 end
             
             if target_param then
+                register_touch(G, target_param)
                 pcall(function()
                     local p_idx = params.lookup[target_param]
                     if p_idx then
