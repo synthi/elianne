@@ -1,6 +1,7 @@
--- lib/grid_ui.lua v0.500
--- CHANGELOG v0.500:
--- 1. FEATURE: Botón Learn en x=2, y=8 con parpadeo matemático.
+-- lib/grid_ui.lua v0.502
+-- CHANGELOG v0.502:
+-- 1. FIX: Salida rápida del Modo Learn pulsando el botón parpadeante sin Shift.
+-- 2. FEATURE: Botón Learn en x=2, y=8 con parpadeo matemático.
 -- CHANGELOG v0.201:
 -- 1. FIX: Nodos ADC (x=15, x=16, y=8) ahora se dibujan y funcionan correctamente.
 
@@ -36,21 +37,25 @@ function GridUI.key(G, g, x, y, z)
         return
     end
 
-    -- ANOTACIÓN PARA EL EQUIPO: Botón Learn (x=2, y=8)
+    -- ANOTACIÓN PARA EL EQUIPO: Botón Learn (x=2, y=8) con salida rápida
     if x == 2 and y == 8 then
-        if z == 1 and G.shift_held then
-            G.learn_mode = not G.learn_mode
+        if z == 1 then
             if G.learn_mode then
+                -- Salir del modo Learn (no requiere Shift)
+                G.learn_mode = false
+                G.ui_text_state.text = "ELIANNE 2500"
+                G.ui_text_state.level = 4
+                G.ui_text_state.is_fader = false
+                G.screen_dirty = true
+            elseif G.shift_held then
+                -- Entrar al modo Learn
+                G.learn_mode = true
                 G.ui_text_state.text = "LEARN: MUEVE PARAM"
                 G.ui_text_state.level = 15
                 G.ui_text_state.timer = util.time() + 2.0
                 G.ui_text_state.is_fader = true
-            else
-                G.ui_text_state.text = "ELIANNE 2500"
-                G.ui_text_state.level = 4
-                G.ui_text_state.is_fader = false
+                G.screen_dirty = true
             end
-            G.screen_dirty = true
         end
         return
     end
