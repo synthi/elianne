@@ -1,4 +1,7 @@
--- lib/storage.lua v0.415
+-- lib/storage.lua v0.500
+-- CHANGELOG v0.500:
+-- 1. FEATURE: Persistencia de fader_map en PSETs con retrocompatibilidad.
+-- 2. FIX: Desenganche automático de faders al cargar Snapshots (Morphing).
 -- CHANGELOG v0.415:
 -- 1. FIX FATAL: Corrutina anclada a G.morph_coroutine para evitar "lucha" de parámetros por includes dinámicos.
 -- 2. FEATURE: True Crossfade Lineal (0% a 100% simultáneo para cables nuevos y viejos).
@@ -25,7 +28,8 @@ function Storage.save(G, pset_number)
     local data = {
         patch = G.patch,
         snapshots = G.snapshots,
-        active_snap = G.active_snap
+        active_snap = G.active_snap,
+        fader_map = G.fader_map -- ANOTACIÓN PARA EL EQUIPO: Guardamos el mapeo del 16n
     }
     tab.save(data, file)
     print("ELIANNE: Estado Total guardado en PSET " .. pset_number)
@@ -40,6 +44,10 @@ function Storage.load(G, pset_number)
         if data then
             if data.snapshots then G.snapshots = data.snapshots end
             G.active_snap = data.active_snap
+            
+            -- ANOTACIÓN PARA EL EQUIPO: Retrocompatibilidad segura para PSETs antiguos
+            G.fader_map = data.fader_map or {}
+            for i = 1, 16 do G.fader_latched[i] = false end
             
             if data.patch then
                 G.patch = data.patch
@@ -118,6 +126,9 @@ function Storage.load_snapshot(G, snap_id)
         clock.cancel(G.morph_coroutine) 
         G.morph_coroutine = nil
     end
+    
+    -- ANOTACIÓN PARA EL EQUIPO: Desenganchar faders antes del Morphing
+    for i = 1, 16 do G.fader_latched[i] = false end
     
     local morph_time = params:get("morph_time")
     G.active_snap = snap_id
