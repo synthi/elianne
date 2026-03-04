@@ -1,4 +1,6 @@
--- lib/16n.lua v1.1
+-- lib/16n.lua v0.500
+-- CHANGELOG v0.500:
+-- 1. Mantenimiento de versión para sincronía con el sistema global v0.500.
 -- CHANGELOG v1.1:
 -- 1. FIX FATAL: Callback MIDI envuelto en pcall para proteger el boot de Norns.
 
