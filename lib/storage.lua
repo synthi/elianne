@@ -223,7 +223,7 @@ function Storage.load_snapshot(G, snap_id)
                     end
                     
                     -- ANOTACIÓN PARA EL EQUIPO: Restaurar lag base de 50ms anti-zipper
-                    pcall(function() engine.set_morph_lag(0.05) end) 
+                    -- pcall(function() engine.set_morph_lag(0.05) end) 
                     
                     G.morph_percent = 100
                     G.morph_text_timer = util.time() + 1.0 
