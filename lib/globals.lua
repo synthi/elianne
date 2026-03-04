@@ -1,4 +1,7 @@
--- lib/globals.lua v0.201
+-- lib/globals.lua v0.500
+-- CHANGELOG v0.500:
+-- 1. FEATURE: Añadidas variables globales para el sistema 16n (Learn, Fader Map, Latched, UI State).
+-- 2. FEATURE: Añadidas variables de inercia temporal para filtro anti-jitter.
 -- CHANGELOG v0.201:
 -- 1. UI: Renombrados nodos 23 y 24 a "Multi 1 Out" y "Multi 2 Out".
 
@@ -30,6 +33,20 @@ for i = 1, 6 do
     }
 end
 
+-- ANOTACIÓN PARA EL EQUIPO: Estructuras de datos para el 16n Faderbank
+G.fader_map = {}
+G.fader_latched = {}
+G.fader_last_move = {}
+G.fader_move_start = {}
+for i = 1, 16 do 
+    G.fader_latched[i] = false 
+    G.fader_last_move[i] = 0
+    G.fader_move_start[i] = 0
+end
+G.learn_mode = false
+G.last_touched_param = nil
+G.ui_text_state = { text = "ELIANNE 2500", level = 4, timer = 0, is_fader = false }
+
 G.patch = {}
 G.nodes = {}
 G.grid_map = {}
@@ -59,7 +76,7 @@ function G.init_nodes()
         return id
     end
 
-    -- MÓDULO 1: 1004-P (A) [IDs 1-8]
+    -- MÓDULO 1: 1004-P (A)[IDs 1-8]
     add_node(1, 1, "in", 1, "FM 1 In")
     add_node(2, 1, "in", 1, "FM 2 In")
     add_node(1, 2, "in", 1, "PWM In")
