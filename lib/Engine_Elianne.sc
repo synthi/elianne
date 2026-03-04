@@ -1,6 +1,6 @@
-// lib/Engine_Elianne.sc v0.417 (MASTER DSP ARCHITECTURE)
+// lib/Engine_Elianne.sc v0.418 (MASTER DSP ARCHITECTURE)
 // CHANGELOG v0.415:
-// 1. ADC monitor fix, gain fix, lin fm fix,slew fix, noise gain sh fix
+// 1. ADC monitor fix, gain fix, lin fm fix,slew fix, noise gain sh fix, ecp resonance cv
 // 2. FEATURE: ADC Envelope Follower con ganancia x5.0 para garantizar 10V p-p de modulación.
 // 3. FIX: Comandos OSC añadidos para el control del ADC y el Lag Condicional.
 
@@ -421,7 +421,7 @@ Engine_Elianne : CroneEngine {
         }).add;
 
         // =====================================================================
-        // SYNTH 6 & 7: ARP 1047
+        // SYNTH 6 & 7: ARP 1047 (AUDIO-RATE FM FEEDBACK)
         // =====================================================================
         SynthDef(\Elianne_1047, {
             arg in_aud, in_cv1, in_res, in_cv2,
@@ -452,6 +452,8 @@ Engine_Elianne : CroneEngine {
             sys_age = In.kr(phys_bus + 0) * 10.0;
             pink_cv = PinkNoise.ar(0.0001 * (1.0 + (sys_age * 2.0)));
             brown_cv = LeakDC.ar(BrownNoise.ar(0.0005 * (1.0 + (sys_age * 2.0))), 0.99);
+            
+            // Slew Rate real de Op-Amp LM301 (20us a 100us)
             slew_time = 0.00002 + (sys_age * 0.00008);
             
             aud = InFeedback.ar(in_aud) * In.kr(lvl_aud);
@@ -475,8 +477,8 @@ Engine_Elianne : CroneEngine {
             
             cv2_mod = cv2 * (1 - cv2_mode);
             
-            // Sensibilidad CV al 100% (5V = 500 de Q)
-            q_mod = (q + (res_cv * 500.0) + (ping_env * 500.0)) * (1.0 + age_q);
+            // FIX: Resonancia Exponencial Histórica (1V duplica la Q)
+            q_mod = q * (2.0 ** (res_cv * 5.0)) * (2.0 ** (ping_env * 5.0)) * (1.0 + age_q);
             q_mod = q_mod.clip(0.1, 500.0); 
             
             // Mapeo a 2.0 para permitir inestabilidad real
@@ -486,7 +488,8 @@ Engine_Elianne : CroneEngine {
             bp_fb = InFeedback.ar(out_bp);
             fm_fb = bp_fb.tanh * ((q_mod.max(400.0) - 400.0) / 100.0).pow(4) * 0.5; 
             
-            f_mod = (K2A.ar(cutoff) + fine) * (2.0 ** (cv1 * 5.0)) * (2.0 ** (cv2_mod * 5.0)) * (2.0 ** (ping_env * p_shift * 5.0)) * (2.0 ** fm_fb) * (1.0 + age_fc + brown_cv);
+            // FIX: Sensibilidad FM x2 (10 octavas por cada 5V)
+            f_mod = (K2A.ar(cutoff) + fine) * (2.0 ** (cv1 * 10.0)) * (2.0 ** (cv2_mod * 10.0)) * (2.0 ** (ping_env * p_shift * 5.0)) * (2.0 ** fm_fb) * (1.0 + age_fc + brown_cv);
             f_mod = f_mod.clip(10, 20000);
             
             // Ruido calibrado a -73dB RMS máximo
