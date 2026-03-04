@@ -112,7 +112,7 @@ Engine_Elianne : CroneEngine {
             var fm1, fm2, pwm_mod, voct;
             var fm1_lin, fm1_exp, fm2_lin, fm2_exp;
             var age_pitch, age_shape, age_amp;
-            var base_freq, freq, pwm_final, phase;
+            var base_freq, exp_core, freq, pwm_final, phase;
             var raw_tri, sqr, sig_tri, sig_saw, sig_pulse, sig_sine, mix;
             
             tune = Lag.kr(tune, morph_lag);
@@ -125,7 +125,9 @@ Engine_Elianne : CroneEngine {
             
             sys_age = In.kr(phys_bus + 0) * 10.0; 
             noise_floor = LeakDC.ar(BrownNoise.ar(0.00056 + (sys_age * 0.001)), 0.99); 
-            slew_time = 0.001 + (sys_age * 0.005); 
+            
+            // FIX: Slew Rate real de Op-Amp LM301 (20us a 100us)
+            slew_time = 0.00002 + (sys_age * 0.00008); 
             
             fm1 = Lag.ar(InFeedback.ar(in_fm1) * In.kr(lvl_fm1), slew_time);
             fm2 = Lag.ar(InFeedback.ar(in_fm2) * In.kr(lvl_fm2), slew_time);
@@ -145,7 +147,9 @@ Engine_Elianne : CroneEngine {
             
             base_freq = Select.kr(range,[tune, tune * 0.001]);
             
-            freq = (K2A.ar(base_freq + fine) + fm1_lin + fm2_lin) * (2.0 ** (voct * 5.0 + age_pitch + fm1_exp + fm2_exp + noise_floor));
+            // FIX: Topología FM Analógica (Núcleo Exp -> Suma Lineal -> Non-Through-Zero)
+            exp_core = K2A.ar(base_freq + fine) * (2.0 ** (voct * 5.0 + age_pitch + fm1_exp + fm2_exp + noise_floor));
+            freq = (exp_core + fm1_lin + fm2_lin).max(0.0);
             
             pwm_final = (pwm_base + pwm_mod).clip(0.0, 1.0);
             
@@ -160,11 +164,11 @@ Engine_Elianne : CroneEngine {
             
             mix = ((sig_sine * mix_sine) + (sig_tri * mix_tri) + (sig_saw * mix_saw) + (sig_pulse * mix_pulse)) * age_amp;
             
-            // Solo Crossover Distortion (Op-Amp Grit)
-            mix = CrossoverDistortion.ar(mix, 0.01, 0.01);
-            sig_tri = CrossoverDistortion.ar(sig_tri, 0.01, 0.01);
-            sig_sine = CrossoverDistortion.ar(sig_sine, 0.01, 0.01);
-            sig_pulse = CrossoverDistortion.ar(sig_pulse, 0.01, 0.01);
+            // FIX: Crossover Distortion en Paralelo + Gain Staging (10V p-p)
+            mix = (mix + CrossoverDistortion.ar(mix, 0.01, 0.01)).clip(-1.0, 1.0);
+            sig_tri = (sig_tri + CrossoverDistortion.ar(sig_tri, 0.01, 0.01)).clip(-1.0, 1.0);
+            sig_sine = (sig_sine + CrossoverDistortion.ar(sig_sine, 0.01, 0.01)).clip(-1.0, 1.0);
+            sig_pulse = (sig_pulse + CrossoverDistortion.ar(sig_pulse, 0.01, 0.01)).clip(-1.0, 1.0);
             
             Out.ar(out_main, mix * In.kr(lvl_main));
             Out.ar(out_inv, sig_tri * In.kr(lvl_inv)); 
@@ -187,8 +191,8 @@ Engine_Elianne : CroneEngine {
             var morph_lag = In.kr(phys_bus + 7);
             var sys_age, noise_floor, slew_time;
             var age_p1, age_s1, age_a1, age_p2, age_s2, age_a2;
-            var fm1_in, fm1_pitch, fm1_morph, pv1, voct1, pwm_mod1, freq1, ph1, rtri1, sqr1, tri1, saw1, pul1, sin1, waves1, mix1, sig_out3;
-            var fm2_in, fm2_pitch, fm2_morph, pv2, voct2, pwm_mod2, freq2, ph2, rtri2, sqr2, tri2, saw2, pul2, sin2, waves2, mix2, sig_out4;
+            var fm1_in, fm1_pitch, fm1_morph, pv1, voct1, pwm_mod1, exp_core1, freq1, ph1, rtri1, sqr1, tri1, saw1, pul1, sin1, waves1, mix1, sig_out3;
+            var fm2_in, fm2_pitch, fm2_morph, pv2, voct2, pwm_mod2, exp_core2, freq2, ph2, rtri2, sqr2, tri2, saw2, pul2, sin2, waves2, mix2, sig_out4;
             
             tune1 = Lag.kr(tune1, morph_lag);
             pwm1 = Lag.kr(pwm1, morph_lag);
@@ -199,7 +203,9 @@ Engine_Elianne : CroneEngine {
             
             sys_age = In.kr(phys_bus + 0) * 10.0;
             noise_floor = LeakDC.ar(BrownNoise.ar(0.00056 + (sys_age * 0.001)), 0.99);
-            slew_time = 0.001 + (sys_age * 0.005);
+            
+            // FIX: Slew Rate real de Op-Amp LM301 (20us a 100us)
+            slew_time = 0.00002 + (sys_age * 0.00008);
             
             age_p1 = K2A.ar(LFNoise2.kr(0.0127)) * sys_age * 0.002;
             age_s1 = K2A.ar(LFNoise2.kr(0.0181)) * sys_age * 0.05;
@@ -217,7 +223,9 @@ Engine_Elianne : CroneEngine {
             voct1 = pv1 * pv1_mode * 5.0;
             pwm_mod1 = pv1 * (1 - pv1_mode);
             
-            freq1 = (K2A.ar(Select.kr(range1,[tune1, tune1*0.001])) + fm1_pitch) * (2.0 ** (voct1 + age_p1 + noise_floor));
+            // FIX: Topología FM Analógica (Osc 1)
+            exp_core1 = K2A.ar(Select.kr(range1,[tune1, tune1*0.001])) * (2.0 ** (voct1 + age_p1 + noise_floor));
+            freq1 = (exp_core1 + fm1_pitch).max(0.0);
             
             ph1 = Phasor.ar(0, freq1 * SampleDur.ir, 0, 1);
             rtri1 = (ph1 * 2 - 1).abs * 2 - 1 + age_s1;
@@ -240,7 +248,9 @@ Engine_Elianne : CroneEngine {
             voct2 = pv2 * pv2_mode * 5.0;
             pwm_mod2 = pv2 * (1 - pv2_mode);
             
-            freq2 = (K2A.ar(Select.kr(range2,[tune2, tune2*0.001])) + fm2_pitch) * (2.0 ** (voct2 + age_p2 + noise_floor));
+            // FIX: Topología FM Analógica (Osc 2)
+            exp_core2 = K2A.ar(Select.kr(range2,[tune2, tune2*0.001])) * (2.0 ** (voct2 + age_p2 + noise_floor));
+            freq2 = (exp_core2 + fm2_pitch).max(0.0);
             
             ph2 = Phasor.ar(0, freq2 * SampleDur.ir, 0, 1);
             rtri2 = (ph2 * 2 - 1).abs * 2 - 1 + age_s2;
@@ -254,10 +264,11 @@ Engine_Elianne : CroneEngine {
             mix2 = SelectX.ar((morph2 + fm2_morph).clip(0,1) * 9.0, waves2) * age_a2;
             sig_out4 = Select.ar(out4_wave,[sin2, tri2, saw2, sqr2, pul2]);
             
-            mix1 = CrossoverDistortion.ar(mix1, 0.01, 0.01);
-            mix2 = CrossoverDistortion.ar(mix2, 0.01, 0.01);
-            sig_out3 = CrossoverDistortion.ar(sig_out3, 0.01, 0.01);
-            sig_out4 = CrossoverDistortion.ar(sig_out4, 0.01, 0.01);
+            // FIX: Crossover Distortion en Paralelo + Gain Staging (10V p-p)
+            mix1 = (mix1 + CrossoverDistortion.ar(mix1, 0.01, 0.01)).clip(-1.0, 1.0);
+            mix2 = (mix2 + CrossoverDistortion.ar(mix2, 0.01, 0.01)).clip(-1.0, 1.0);
+            sig_out3 = (sig_out3 + CrossoverDistortion.ar(sig_out3, 0.01, 0.01)).clip(-1.0, 1.0);
+            sig_out4 = (sig_out4 + CrossoverDistortion.ar(sig_out4, 0.01, 0.01)).clip(-1.0, 1.0);
             
             Out.ar(out_o1, mix1 * In.kr(lvl_o1));
             Out.ar(out_o2, mix2 * In.kr(lvl_o2));
