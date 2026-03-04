@@ -1,4 +1,6 @@
--- lib/grid_ui.lua v0.201
+-- lib/grid_ui.lua v0.500
+-- CHANGELOG v0.500:
+-- 1. FEATURE: Botón Learn en x=2, y=8 con parpadeo matemático.
 -- CHANGELOG v0.201:
 -- 1. FIX: Nodos ADC (x=15, x=16, y=8) ahora se dibujan y funcionan correctamente.
 
@@ -31,6 +33,25 @@ function GridUI.key(G, g, x, y, z)
     if x == 1 and y == 8 then
         G.shift_held = (z == 1)
         G.screen_dirty = true
+        return
+    end
+
+    -- ANOTACIÓN PARA EL EQUIPO: Botón Learn (x=2, y=8)
+    if x == 2 and y == 8 then
+        if z == 1 and G.shift_held then
+            G.learn_mode = not G.learn_mode
+            if G.learn_mode then
+                G.ui_text_state.text = "LEARN: MUEVE PARAM"
+                G.ui_text_state.level = 15
+                G.ui_text_state.timer = util.time() + 2.0
+                G.ui_text_state.is_fader = true
+            else
+                G.ui_text_state.text = "ELIANNE 2500"
+                G.ui_text_state.level = 4
+                G.ui_text_state.is_fader = false
+            end
+            G.screen_dirty = true
+        end
         return
     end
 
@@ -167,6 +188,14 @@ function GridUI.redraw(G, g)
             if y == 8 and x <= 8 then
                 if x == 1 then
                     b = G.shift_held and 15 or 8
+                elseif x == 2 then
+                    -- ANOTACIÓN PARA EL EQUIPO: Parpadeo matemático del botón Learn
+                    if G.learn_mode then
+                        b = (math.floor(util.time() * 4) % 2 == 0) and 15 or 4
+                        G.screen_dirty = true -- Forzar redraw para el parpadeo
+                    else
+                        b = G.shift_held and 4 or 0
+                    end
                 elseif x >= 3 and x <= 8 then
                     local snap_id = x - 2
                     if G.active_snap == snap_id then
