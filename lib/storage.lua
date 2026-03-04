@@ -1,7 +1,8 @@
--- lib/storage.lua v0.500
--- CHANGELOG v0.500:
--- 1. FEATURE: Persistencia de fader_map en PSETs con retrocompatibilidad.
--- 2. FIX: Desenganche automático de faders al cargar Snapshots (Morphing).
+-- lib/storage.lua v0.502
+-- CHANGELOG v0.502:
+-- 1. FIX: Restauración del lag base de 50ms al finalizar el Morphing para evitar Zipper Noise.
+-- 2. FEATURE: Persistencia de fader_map en PSETs con retrocompatibilidad.
+-- 3. FIX: Desenganche automático de faders al cargar Snapshots (Morphing).
 -- CHANGELOG v0.415:
 -- 1. FIX FATAL: Corrutina anclada a G.morph_coroutine para evitar "lucha" de parámetros por includes dinámicos.
 -- 2. FEATURE: True Crossfade Lineal (0% a 100% simultáneo para cables nuevos y viejos).
@@ -221,7 +222,8 @@ function Storage.load_snapshot(G, snap_id)
                         if not has_active then engine.pause_matrix_row(dst_id - 1) end
                     end
                     
-                    pcall(function() engine.set_morph_lag(0.0) end) 
+                    -- ANOTACIÓN PARA EL EQUIPO: Restaurar lag base de 50ms anti-zipper
+                    pcall(function() engine.set_morph_lag(0.05) end) 
                     
                     G.morph_percent = 100
                     G.morph_text_timer = util.time() + 1.0 
