@@ -1,10 +1,9 @@
--- elianne.lua v0.500
--- CHANGELOG v0.500:
--- 1. FEATURE: Integración completa de 16n Faderbank con Soft-Takeover y Grid-Learn.
--- 2. FEATURE: Filtro de inercia temporal (50ms) para UI, manteniendo 0ms de latencia en audio.
--- CHANGELOG v0.8.1:
--- 1. FIX FATAL: Eliminado pcall en load_dependencies para evitar Pantallas Negras Silenciosas.
--- 2. FIX FATAL: Restaurado params:bang() protegido por G.booting para restaurar MIDI y evitar UDP Flood.
+-- elianne.lua v0.502
+-- CHANGELOG v0.502:
+-- 1. FIX: Orden de Boot corregido para cargar PSETs completos (Cables y Mapeos) al arrancar.
+-- 2. FIX: Faders ahora controlan el audio inmediatamente dentro del Modo Learn.
+-- 3. FEATURE: Lag base de 50ms inyectado en SC para eliminar Zipper Noise de MIDI CC.
+-- 4. FEATURE: Integración completa de 16n Faderbank con Soft-Takeover y Grid-Learn.
 
 engine.name = 'Elianne'
 
@@ -66,20 +65,21 @@ function init()
     local s2, e2 = pcall(Params.init, G)
     if not s2 then print("ERROR EN PARAMS: " .. e2) end
     
-    print("ELIANNE DEBUG: 3. Cargando PSET por defecto (params:default)...")
+    -- ANOTACIÓN PARA EL EQUIPO: Interceptores movidos ANTES de params:default() para cargar el PSET completo
+    print("ELIANNE DEBUG: 3. Configurando interceptores de guardado...")
+    params.action_write = function(filename, name, number) Storage.save(G, number) end
+    params.action_read = function(filename, silent, number) Storage.load(G, number) end
+    
+    print("ELIANNE DEBUG: 4. Cargando PSET por defecto (params:default)...")
     params:default()
     
-    print("ELIANNE DEBUG: 4. Inicializando Matriz DSP (Matrix.init)...")
+    print("ELIANNE DEBUG: 5. Inicializando Matriz DSP (Matrix.init)...")
     local s3, e3 = pcall(Matrix.init, G)
     if not s3 then print("ERROR EN MATRIZ: " .. e3) end
     
-    print("ELIANNE DEBUG: 5. Inicializando UI del Grid (GridUI.init)...")
+    print("ELIANNE DEBUG: 6. Inicializando UI del Grid (GridUI.init)...")
     local s4, e4 = pcall(GridUI.init, G)
     if not s4 then print("ERROR EN GRID UI: " .. e4) end
-    
-    print("ELIANNE DEBUG: 6. Configurando interceptores de guardado...")
-    params.action_write = function(filename, name, number) Storage.save(G, number) end
-    params.action_read = function(filename, silent, number) Storage.load(G, number) end
     
     print("ELIANNE DEBUG: 7. Iniciando Metros (Grid y Pantalla)...")
     grid_metro = metro.init()
@@ -98,7 +98,6 @@ function init()
     screen_metro:start()
     
     print("ELIANNE DEBUG: 8. Inicializando 16n Faderbank...")
-    -- ANOTACIÓN PARA EL EQUIPO: Callback del 16n con Soft-Takeover y bloqueo de Morphing.
     Sixteen.init(function(msg)
         if G.booting then return end
         
@@ -138,7 +137,7 @@ function init()
                 -- Auto-enganchar al mapear para feedback inmediato
                 G.fader_latched[slider_id] = true
             end
-            return
+            -- ANOTACIÓN PARA EL EQUIPO: No hay 'return' aquí. El código sigue para aplicar el audio inmediatamente.
         end
 
         -- MODO NORMAL: Soft-Takeover (Catch-up)
@@ -173,8 +172,8 @@ function init()
                 -- Aplicar valor al motor (0 lag)
                 params:set_raw(param_id, val)
                 
-                -- Mostrar valor actual formateado
-                if wake_ui then
+                -- Mostrar valor actual formateado (Solo si no estamos en modo Learn para no pisar el cartel MAPPED)
+                if wake_ui and not G.learn_mode then
                     local display_val = params:string(param_id)
                     G.ui_text_state.text = "[F" .. slider_id .. "] " .. short_name .. ": " .. display_val
                     G.ui_text_state.level = 15
@@ -188,6 +187,9 @@ function init()
     
     print("ELIANNE DEBUG: 9. Ejecutando params:bang() protegido...")
     params:bang()
+    
+    -- ANOTACIÓN PARA EL EQUIPO: Lag base de 50ms inyectado en SC para eliminar Zipper Noise de MIDI
+    pcall(function() engine.set_morph_lag(0.05) end)
     
     -- LIBERACIÓN DEL CANDADO
     G.booting = false
