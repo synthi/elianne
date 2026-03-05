@@ -1,12 +1,8 @@
--- elianne.lua v0.504
--- CHANGELOG v0.504:
--- 1. FIX: Memoria de objetivo en faders (G.fader_last_param) para forzar Catch-up al usar Shift.
--- CHANGELOG v0.502:
--- 1. FEATURE: Auto-Shift a parámetros Fine Tune y Relative Clutch inteligente.
--- CHANGELOG v0.500:
--- 1. FIX: Orden de Boot corregido para cargar PSETs completos (Cables y Mapeos) al arrancar.
--- 2. FIX: Faders ahora controlan el audio inmediatamente dentro del Modo Learn.
--- 3. FEATURE: Integración completa de 16n Faderbank con Soft-Takeover y Grid-Learn.
+-- elianne.lua v0.505
+-- CHANGELOG v0.505:
+-- 1. FIX FATAL: Blindaje contra variables nil en el callback del 16n (evita silent crashes).
+-- 2. FIX: Lógica de enganche refinada: Control inmediato en Modo Learn, pero Catch-up obligatorio al usar Shift.
+-- 3. FEATURE: Auto-Shift a parámetros Fine Tune y Relative Clutch inteligente.
 
 engine.name = 'Elianne'
 
@@ -112,6 +108,13 @@ function init()
         local raw_val = msg.val
         local val = raw_val / 127 -- Normalizado 0.0 a 1.0
 
+        -- ANOTACIÓN PARA EL EQUIPO: Blindaje contra variables nil (evita Silent Crashes)
+        if not G.fader_last_param then G.fader_last_param = {} end
+        if not G.fader_last_raw then G.fader_last_raw = {} end
+        if not G.fine_link then G.fine_link = {["m1_tune"] = "m1_fine", ["m2_tune"] = "m2_fine",["m3_tune1"] = "m3_fine1", ["m3_tune2"] = "m3_fine2",
+            ["m6_cutoff"] = "m6_fine",["m7_cutoff"] = "m7_fine"
+        } end
+
         -- Cálculo de Inercia Temporal (Filtro Anti-Jitter Visual)
         local now = util.time()
         if now - (G.fader_last_move[slider_id] or 0) > 0.2 then
@@ -136,8 +139,6 @@ function init()
                     G.ui_text_state.is_fader = true
                     G.screen_dirty = true
                 end
-                
-                G.fader_latched[slider_id] = true
             end
         end
 
@@ -145,7 +146,7 @@ function init()
         local param_id = G.fader_map[slider_id]
         if param_id and params.lookup[param_id] then
             
-            -- ANOTACIÓN PARA EL EQUIPO: Lógica de Shift (Auto-Fine o Relative Clutch)
+            -- Lógica de Shift (Auto-Fine o Relative Clutch)
             if G.shift_held then
                 if G.fine_link[param_id] then
                     -- Auto-Shift a parámetro Fine
@@ -172,13 +173,19 @@ function init()
                 end
             end
 
-            -- Soft-Takeover Absoluto (Aplica al parámetro normal o al Fine si Shift está pulsado)
-            
-            -- ANOTACIÓN PARA EL EQUIPO: Si el parámetro objetivo cambió (ej. soltaste Shift), forzamos Catch-up
-            if G.fader_last_param[slider_id] ~= param_id then
-                G.fader_latched[slider_id] = false
-            end
+            -- ANOTACIÓN PARA EL EQUIPO: Lógica de enganche refinada
+            local param_changed = (G.fader_last_param[slider_id] ~= param_id)
             G.fader_last_param[slider_id] = param_id
+
+            if param_changed then
+                if G.learn_mode then
+                    -- Si acabamos de mapearlo, lo enganchamos para control inmediato
+                    G.fader_latched[slider_id] = true
+                else
+                    -- Si cambiamos de capa (Shift), lo desenganchamos para pedir Catch-up
+                    G.fader_latched[slider_id] = false
+                end
+            end
 
             local current_val = params:get_raw(param_id)
             local p_name = params.params[params.lookup[param_id]].name
