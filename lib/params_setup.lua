@@ -1,5 +1,7 @@
--- lib/params_setup.lua v0.503
--- CHANGELOG v0.503:
+-- lib/params_setup.lua v0.504
+-- CHANGELOG v0.504:
+-- 1. FIX: Añadidos parámetros trigger m6_ping y m7_ping para restaurar el control K2.
+-- CHANGELOG v0.502:
 -- 1. FEATURE: Rango de Fine Tune ampliado a ±5Hz para 1004-P y 1023.
 -- 2. FEATURE: Añadidos parámetros m3_fine1 y m3_fine2 al 1023 Dual VCO.
 
@@ -118,7 +120,8 @@ function Params.init(G)
     params:add{type = "control", id = "m5_gate_thresh", name = "Gate Threshold", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.001, 0.5), action = function(x) if G.booting then return end; engine.m5_gate_thresh(x) end}
     add_node_params(31, 38)
 
-    params:add_group("MOD 6: 1047 (A)", 17)
+    -- ANOTACIÓN PARA EL EQUIPO: Contador de grupo actualizado a 18 para incluir el trigger
+    params:add_group("MOD 6: 1047 (A)", 18)
     params:add{type = "control", id = "m6_cutoff", name = "Cutoff", controlspec = controlspec.new(10.0, 18000.0, 'exp', 0.01, 1000.0, "Hz"), action = function(x) if G.booting then return end; engine.m6_cutoff(x) end}
     params:add{type = "control", id = "m6_fine", name = "Cutoff Fine", controlspec = controlspec.new(-5.0, 5.0, 'lin', 0.001, 0.0, "Hz"), action = function(x) if G.booting then return end; engine.m6_fine(x) end}
     params:add{type = "control", id = "m6_q", name = "Resonance (Q)", controlspec = controlspec.new(0.1, 500.0, 'exp', 0.1, 1.0), action = function(x) if G.booting then return end; engine.m6_q(x) end}
@@ -128,9 +131,11 @@ function Params.init(G)
     params:add{type = "control", id = "m6_p_shift", name = "Perc Pitch Shift", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.1), action = function(x) if G.booting then return end; engine.set_global_physics("p_shift", x) end}
     params:add{type = "control", id = "m6_jfet", name = "JFET Drive", controlspec = controlspec.new(0.1, 5.0, 'lin', 0.01, 1.5), action = function(x) if G.booting then return end; engine.m6_jfet(x) end}
     params:add{type = "option", id = "m6_cv2_mode", name = "CV2 Mode", options = {"NORM", "KEYB"}, default = 1, action = function(x) if G.booting then return end; engine.m6_cv2_mode(x - 1) end}
+    params:add{type = "trigger", id = "m6_ping", name = "Ping A", action = function() if not G.booting then engine.m6_ping() end end}
     add_node_params(39, 46)
 
-    params:add_group("MOD 7: 1047 (B)", 17)
+    -- ANOTACIÓN PARA EL EQUIPO: Contador de grupo actualizado a 18 para incluir el trigger
+    params:add_group("MOD 7: 1047 (B)", 18)
     params:add{type = "control", id = "m7_cutoff", name = "Cutoff", controlspec = controlspec.new(10.0, 18000.0, 'exp', 0.01, 1000.0, "Hz"), action = function(x) if G.booting then return end; engine.m7_cutoff(x) end}
     params:add{type = "control", id = "m7_fine", name = "Cutoff Fine", controlspec = controlspec.new(-5.0, 5.0, 'lin', 0.001, 0.0, "Hz"), action = function(x) if G.booting then return end; engine.m7_fine(x) end}
     params:add{type = "control", id = "m7_q", name = "Resonance (Q)", controlspec = controlspec.new(0.1, 500.0, 'exp', 0.1, 1.0), action = function(x) if G.booting then return end; engine.m7_q(x) end}
@@ -140,6 +145,7 @@ function Params.init(G)
     params:add{type = "control", id = "m7_p_shift", name = "Perc Pitch Shift", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.1), action = function(x) if G.booting then return end; engine.set_global_physics("p_shift", x) end}
     params:add{type = "control", id = "m7_jfet", name = "JFET Drive", controlspec = controlspec.new(0.1, 5.0, 'lin', 0.01, 1.5), action = function(x) if G.booting then return end; engine.m7_jfet(x) end}
     params:add{type = "option", id = "m7_cv2_mode", name = "CV2 Mode", options = {"NORM", "KEYB"}, default = 1, action = function(x) if G.booting then return end; engine.m7_cv2_mode(x - 1) end}
+    params:add{type = "trigger", id = "m7_ping", name = "Ping B", action = function() if not G.booting then engine.m7_ping() end end}
     add_node_params(47, 54)
 
     params:add_group("MOD 8: NEXUS", 33)
