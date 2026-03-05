@@ -1,9 +1,7 @@
--- lib/globals.lua v0.500
--- CHANGELOG v0.500:
--- 1. FEATURE: Añadidas variables globales para el sistema 16n (Learn, Fader Map, Latched, UI State).
--- 2. FEATURE: Añadidas variables de inercia temporal para filtro anti-jitter.
--- CHANGELOG v0.201:
--- 1. UI: Renombrados nodos 23 y 24 a "Multi 1 Out" y "Multi 2 Out".
+-- lib/globals.lua v0.503
+-- CHANGELOG v0.503:
+-- 1. FEATURE: Añadida tabla G.fine_link para Auto-Shift a parámetros Fine.
+-- 2. FEATURE: Añadida tabla G.fader_last_raw para Relative Clutch inteligente.
 
 local G = {}
 
@@ -33,19 +31,29 @@ for i = 1, 6 do
     }
 end
 
--- ANOTACIÓN PARA EL EQUIPO: Estructuras de datos para el 16n Faderbank
+-- Estructuras de datos para el 16n Faderbank
 G.fader_map = {}
 G.fader_latched = {}
 G.fader_last_move = {}
 G.fader_move_start = {}
+G.fader_last_raw = {} -- Para Relative Clutch
 for i = 1, 16 do 
     G.fader_latched[i] = false 
     G.fader_last_move[i] = 0
     G.fader_move_start[i] = 0
+    G.fader_last_raw[i] = 0
 end
 G.learn_mode = false
 G.last_touched_param = nil
 G.ui_text_state = { text = "ELIANNE 2500", level = 4, timer = 0, is_fader = false }
+
+-- ANOTACIÓN PARA EL EQUIPO: Tabla de enlaces para Auto-Shift a Fine Tune
+G.fine_link = {["m1_tune"] = "m1_fine",
+    ["m2_tune"] = "m2_fine",
+    ["m3_tune1"] = "m3_fine1",["m3_tune2"] = "m3_fine2",
+    ["m6_cutoff"] = "m6_fine",
+    ["m7_cutoff"] = "m7_fine"
+}
 
 G.patch = {}
 G.nodes = {}
@@ -103,8 +111,8 @@ function G.init_nodes()
     add_node(6, 2, "in", 3, "PWM/VOct 2 In")
     add_node(5, 6, "out", 3, "Osc 1 Out")
     add_node(6, 6, "out", 3, "Osc 2 Out")
-    add_node(5, 7, "out", 3, "Multi 1 Out") -- RENOMBRADO
-    add_node(6, 7, "out", 3, "Multi 2 Out") -- RENOMBRADO
+    add_node(5, 7, "out", 3, "Multi 1 Out")
+    add_node(6, 7, "out", 3, "Multi 2 Out")
 
     -- MÓDULO 4: 1016/36 Noise/Random[IDs 25-30]
     add_node(7, 1, "in", 4, "S&H Sig In")
