@@ -1,4 +1,6 @@
-// lib/Engine_Elianne.sc v0.418 (MASTER DSP ARCHITECTURE)
+// lib/Engine_Elianne.sc v0.503 (MASTER DSP ARCHITECTURE)
+// CHANGELOG v0.503:
+// 1. FEATURE: Añadidos parámetros fine1 y fine2 al módulo 1023 Dual VCO.
 // CHANGELOG v0.415:
 // 1. ADC monitor fix, gain fix, lin fm fix,slew fix, noise gain sh fix, ecp resonance cv
 // 2. FEATURE: ADC Envelope Follower con ganancia x5.0 para garantizar 10V p-p de modulación.
@@ -184,8 +186,8 @@ Engine_Elianne : CroneEngine {
                 out_o1, out_o2, out_i1, out_i2,
                 lvl_fm1, lvl_fm2, lvl_pv1, lvl_pv2,
                 lvl_o1, lvl_o2, lvl_i1, lvl_i2,
-                tune1=100, pwm1=0.5, morph1=0, range1=0, pv1_mode=0, fm1_mode=0,
-                tune2=101, pwm2=0.5, morph2=0, range2=0, pv2_mode=0, fm2_mode=0,
+                tune1=100, fine1=0, pwm1=0.5, morph1=0, range1=0, pv1_mode=0, fm1_mode=0,
+                tune2=101, fine2=0, pwm2=0.5, morph2=0, range2=0, pv2_mode=0, fm2_mode=0,
                 out3_wave=0, out4_wave=0, phys_bus;
                 
             var morph_lag = In.kr(phys_bus + 7);
@@ -195,9 +197,11 @@ Engine_Elianne : CroneEngine {
             var fm2_in, fm2_pitch, fm2_morph, pv2, voct2, pwm_mod2, exp_core2, freq2, ph2, rtri2, sqr2, tri2, saw2, pul2, sin2, waves2, mix2, sig_out4;
             
             tune1 = Lag.kr(tune1, morph_lag);
+            fine1 = Lag.kr(fine1, morph_lag);
             pwm1 = Lag.kr(pwm1, morph_lag);
             morph1 = Lag.kr(morph1, morph_lag);
             tune2 = Lag.kr(tune2, morph_lag);
+            fine2 = Lag.kr(fine2, morph_lag);
             pwm2 = Lag.kr(pwm2, morph_lag);
             morph2 = Lag.kr(morph2, morph_lag);
             
@@ -223,8 +227,8 @@ Engine_Elianne : CroneEngine {
             voct1 = pv1 * pv1_mode * 5.0;
             pwm_mod1 = pv1 * (1 - pv1_mode);
             
-            // FIX: Topología FM Analógica (Osc 1)
-            exp_core1 = K2A.ar(Select.kr(range1,[tune1, tune1*0.001])) * (2.0 ** (voct1 + age_p1 + noise_floor));
+            // FIX: Topología FM Analógica (Osc 1) con Fine Tune
+            exp_core1 = K2A.ar(Select.kr(range1,[tune1, tune1*0.001]) + fine1) * (2.0 ** (voct1 + age_p1 + noise_floor));
             freq1 = (exp_core1 + fm1_pitch).max(0.0);
             
             ph1 = Phasor.ar(0, freq1 * SampleDur.ir, 0, 1);
@@ -248,8 +252,8 @@ Engine_Elianne : CroneEngine {
             voct2 = pv2 * pv2_mode * 5.0;
             pwm_mod2 = pv2 * (1 - pv2_mode);
             
-            // FIX: Topología FM Analógica (Osc 2)
-            exp_core2 = K2A.ar(Select.kr(range2,[tune2, tune2*0.001])) * (2.0 ** (voct2 + age_p2 + noise_floor));
+            // FIX: Topología FM Analógica (Osc 2) con Fine Tune
+            exp_core2 = K2A.ar(Select.kr(range2,[tune2, tune2*0.001]) + fine2) * (2.0 ** (voct2 + age_p2 + noise_floor));
             freq2 = (exp_core2 + fm2_pitch).max(0.0);
             
             ph2 = Phasor.ar(0, freq2 * SampleDur.ir, 0, 1);
@@ -751,18 +755,21 @@ Engine_Elianne : CroneEngine {
 
         // M3
         this.addCommand("m3_tune1", "f", { |msg| synth_mods[2].set(\tune1, msg[1]) });
+        this.addCommand("m3_fine1", "f", { |msg| synth_mods[2].set(\fine1, msg[1]) });
         this.addCommand("m3_pwm1", "f", { |msg| synth_mods[2].set(\pwm1, msg[1]) });
         this.addCommand("m3_morph1", "f", { |msg| synth_mods[2].set(\morph1, msg[1]) });
         this.addCommand("m3_range1", "i", { |msg| synth_mods[2].set(\range1, msg[1]) });
         this.addCommand("m3_pv1_mode", "i", { |msg| synth_mods[2].set(\pv1_mode, msg[1]) });
         this.addCommand("m3_fm1_mode", "i", { |msg| synth_mods[2].set(\fm1_mode, msg[1]) });
+        this.addCommand("m3_out3_wave", "i", { |msg| synth_mods[2].set(\out3_wave, msg[1]) });
+        
         this.addCommand("m3_tune2", "f", { |msg| synth_mods[2].set(\tune2, msg[1]) });
+        this.addCommand("m3_fine2", "f", { |msg| synth_mods[2].set(\fine2, msg[1]) });
         this.addCommand("m3_pwm2", "f", { |msg| synth_mods[2].set(\pwm2, msg[1]) });
         this.addCommand("m3_morph2", "f", { |msg| synth_mods[2].set(\morph2, msg[1]) });
         this.addCommand("m3_range2", "i", { |msg| synth_mods[2].set(\range2, msg[1]) });
         this.addCommand("m3_pv2_mode", "i", { |msg| synth_mods[2].set(\pv2_mode, msg[1]) });
         this.addCommand("m3_fm2_mode", "i", { |msg| synth_mods[2].set(\fm2_mode, msg[1]) });
-        this.addCommand("m3_out3_wave", "i", { |msg| synth_mods[2].set(\out3_wave, msg[1]) });
         this.addCommand("m3_out4_wave", "i", { |msg| synth_mods[2].set(\out4_wave, msg[1]) });
 
         // M4
