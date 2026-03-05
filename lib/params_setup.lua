@@ -1,8 +1,7 @@
--- lib/params_setup.lua v0.412
--- CHANGELOG v0.412:
--- 1. FEATURE: Attenuverters expuestos en el menú de parámetros y agrupados por módulo.
--- 2. FIX: Añadida función action a los Attenuverters para sincronización OSC automática.
--- 3. FEATURE: Añadidos parámetros ADC Mode y Slew al grupo NEXUS.
+-- lib/params_setup.lua v0.503
+-- CHANGELOG v0.503:
+-- 1. FEATURE: Rango de Fine Tune ampliado a ±5Hz para 1004-P y 1023.
+-- 2. FEATURE: Añadidos parámetros m3_fine1 y m3_fine2 al 1023 Dual VCO.
 
 local Params = {}
 
@@ -49,7 +48,7 @@ function Params.init(G)
 
     params:add_group("MOD 1: 1004-P (A)", 18)
     params:add{type = "control", id = "m1_tune", name = "Tune", controlspec = controlspec.new(10.0, 16000.0, 'exp', 0.001, 100.0, "Hz"), action = function(x) if G.booting then return end; engine.m1_tune(x) end}
-    params:add{type = "control", id = "m1_fine", name = "Fine Tune", controlspec = controlspec.new(-2.0, 2.0, 'lin', 0.001, 0.0, "Hz"), action = function(x) if G.booting then return end; engine.m1_fine(x) end}
+    params:add{type = "control", id = "m1_fine", name = "Fine Tune", controlspec = controlspec.new(-5.0, 5.0, 'lin', 0.001, 0.0, "Hz"), action = function(x) if G.booting then return end; engine.m1_fine(x) end}
     params:add{type = "control", id = "m1_pwm", name = "PWM Base", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.5), action = function(x) if G.booting then return end; engine.m1_pwm(x) end}
     params:add{type = "control", id = "m1_mix_sine", name = "Mix Sine", controlspec = controlspec.new(-1.0, 1.0, 'lin', 0.01, 1.0), action = function(x) if G.booting then return end; engine.m1_mix_sine(x) end}
     params:add{type = "control", id = "m1_mix_tri", name = "Mix Tri", controlspec = controlspec.new(-1.0, 1.0, 'lin', 0.01, 0.0), action = function(x) if G.booting then return end; engine.m1_mix_tri(x) end}
@@ -62,7 +61,7 @@ function Params.init(G)
 
     params:add_group("MOD 2: 1004-P (B)", 18)
     params:add{type = "control", id = "m2_tune", name = "Tune", controlspec = controlspec.new(10.0, 16000.0, 'exp', 0.001, 100.0, "Hz"), action = function(x) if G.booting then return end; engine.m2_tune(x) end}
-    params:add{type = "control", id = "m2_fine", name = "Fine Tune", controlspec = controlspec.new(-2.0, 2.0, 'lin', 0.001, 0.0, "Hz"), action = function(x) if G.booting then return end; engine.m2_fine(x) end}
+    params:add{type = "control", id = "m2_fine", name = "Fine Tune", controlspec = controlspec.new(-5.0, 5.0, 'lin', 0.001, 0.0, "Hz"), action = function(x) if G.booting then return end; engine.m2_fine(x) end}
     params:add{type = "control", id = "m2_pwm", name = "PWM Base", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.5), action = function(x) if G.booting then return end; engine.m2_pwm(x) end}
     params:add{type = "control", id = "m2_mix_sine", name = "Mix Sine", controlspec = controlspec.new(-1.0, 1.0, 'lin', 0.01, 1.0), action = function(x) if G.booting then return end; engine.m2_mix_sine(x) end}
     params:add{type = "control", id = "m2_mix_tri", name = "Mix Tri", controlspec = controlspec.new(-1.0, 1.0, 'lin', 0.01, 0.0), action = function(x) if G.booting then return end; engine.m2_mix_tri(x) end}
@@ -73,15 +72,18 @@ function Params.init(G)
     params:add{type = "option", id = "m2_fm2_type", name = "FM 2 Type", options = {"LIN", "EXP"}, default = 2, action = function(x) if G.booting then return end; engine.m2_fm2_type(x - 1) end}
     add_node_params(9, 16)
 
-    params:add_group("MOD 3: 1023 DUAL VCO", 22)
+    params:add_group("MOD 3: 1023 DUAL VCO", 24)
     params:add{type = "control", id = "m3_tune1", name = "Osc 1 Tune", controlspec = controlspec.new(0.01, 16000.0, 'exp', 0.001, 100.0, "Hz"), action = function(x) if G.booting then return end; engine.m3_tune1(x) end}
+    params:add{type = "control", id = "m3_fine1", name = "Osc 1 Fine", controlspec = controlspec.new(-5.0, 5.0, 'lin', 0.001, 0.0, "Hz"), action = function(x) if G.booting then return end; engine.m3_fine1(x) end}
     params:add{type = "control", id = "m3_pwm1", name = "Osc 1 PWM", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.5), action = function(x) if G.booting then return end; engine.m3_pwm1(x) end}
     params:add{type = "control", id = "m3_morph1", name = "Osc 1 Morph", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.001, 0.0), action = function(x) if G.booting then return end; engine.m3_morph1(x) end}
     params:add{type = "option", id = "m3_range1", name = "Osc 1 Range", options = {"HI", "LO"}, default = 1, action = function(x) if G.booting then return end; engine.m3_range1(x - 1) end}
     params:add{type = "option", id = "m3_pv1_mode", name = "Osc 1 PV Dest", options = {"PWM", "VOCT"}, default = 1, action = function(x) if G.booting then return end; engine.m3_pv1_mode(x - 1) end}
     params:add{type = "option", id = "m3_fm1_mode", name = "Osc 1 FM Dest", options = {"FM", "MORPH"}, default = 1, action = function(x) if G.booting then return end; engine.m3_fm1_mode(x - 1) end}
     params:add{type = "option", id = "m3_out3_wave", name = "Osc 1 Multi Wave", options = {"SINE", "TRI", "SAW", "SQR", "PULSE"}, default = 1, action = function(x) if G.booting then return end; engine.m3_out3_wave(x - 1) end}
+    
     params:add{type = "control", id = "m3_tune2", name = "Osc 2 Tune", controlspec = controlspec.new(0.01, 16000.0, 'exp', 0.001, 101.0, "Hz"), action = function(x) if G.booting then return end; engine.m3_tune2(x) end}
+    params:add{type = "control", id = "m3_fine2", name = "Osc 2 Fine", controlspec = controlspec.new(-5.0, 5.0, 'lin', 0.001, 0.0, "Hz"), action = function(x) if G.booting then return end; engine.m3_fine2(x) end}
     params:add{type = "control", id = "m3_pwm2", name = "Osc 2 PWM", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.5), action = function(x) if G.booting then return end; engine.m3_pwm2(x) end}
     params:add{type = "control", id = "m3_morph2", name = "Osc 2 Morph", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.001, 0.0), action = function(x) if G.booting then return end; engine.m3_morph2(x) end}
     params:add{type = "option", id = "m3_range2", name = "Osc 2 Range", options = {"HI", "LO"}, default = 1, action = function(x) if G.booting then return end; engine.m3_range2(x - 1) end}
