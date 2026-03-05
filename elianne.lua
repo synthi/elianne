@@ -1,5 +1,7 @@
--- elianne.lua v0.503
--- CHANGELOG v0.503:
+-- elianne.lua v0.504
+-- CHANGELOG v0.504:
+-- 1. FIX: Memoria de objetivo en faders (G.fader_last_param) para forzar Catch-up al usar Shift.
+-- CHANGELOG v0.502:
 -- 1. FEATURE: Auto-Shift a parámetros Fine Tune y Relative Clutch inteligente.
 -- CHANGELOG v0.500:
 -- 1. FIX: Orden de Boot corregido para cargar PSETs completos (Cables y Mapeos) al arrancar.
@@ -171,6 +173,13 @@ function init()
             end
 
             -- Soft-Takeover Absoluto (Aplica al parámetro normal o al Fine si Shift está pulsado)
+            
+            -- ANOTACIÓN PARA EL EQUIPO: Si el parámetro objetivo cambió (ej. soltaste Shift), forzamos Catch-up
+            if G.fader_last_param[slider_id] ~= param_id then
+                G.fader_latched[slider_id] = false
+            end
+            G.fader_last_param[slider_id] = param_id
+
             local current_val = params:get_raw(param_id)
             local p_name = params.params[params.lookup[param_id]].name
             local short_name = string.sub(p_name, 1, 10)
