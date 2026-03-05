@@ -1,11 +1,8 @@
--- lib/screen_ui.lua v0.500
--- CHANGELOG v0.500:
--- 1. FEATURE: Renderizador dinámico de texto central con Fade-out matemático.
--- 2. FEATURE: Intercepción de parámetros para el modo Learn.
--- CHANGELOG v0.413:
--- 1. UI: Cartel dinámico de Morphing con persistencia de 1 segundo.
--- 2. UI: Controles de ADC Envelope Follower (Mode y Slew) en Nodos 63 y 64.
--- 3. UI: cables con gravedad dinamica
+-- lib/screen_ui.lua v0.503
+-- CHANGELOG v0.503:
+-- 1. FEATURE: Bloqueo de desvanecimiento de UI durante el Modo Learn para persistencia visual.
+-- 2. FEATURE: Añadidos m3_fine1 y m3_fine2 al MenuDef[3] (Encoder 4).
+
 local ScreenUI = {}
 
 ScreenUI.ping_flash = {[6] = 0, [7] = 0 }
@@ -13,15 +10,13 @@ ScreenUI.ping_flash = {[6] = 0, [7] = 0 }
 local MenuDef = {
     [1] = { A = { title = "1004-P (A) CORE", e1 = {id="m1_pwm", name="PWM"}, e2 = {id="m1_tune", name="TUNE"}, e3 = {id="m1_fine", name="FINE"}, k2 = {id="m1_range", name=""} }, B = { title = "1004-P (A) MIXER", e1 = {id="m1_mix_sine", name="SINE"}, e2 = {id="m1_mix_tri", name="TRI"}, e3 = {id="m1_mix_saw", name="SAW"}, e4 = {id="m1_mix_pulse", name="PULSE"} } },
     [2] = { A = { title = "1004-P (B) CORE", e1 = {id="m2_pwm", name="PWM"}, e2 = {id="m2_tune", name="TUNE"}, e3 = {id="m2_fine", name="FINE"}, k2 = {id="m2_range", name=""} }, B = { title = "1004-P (B) MIXER", e1 = {id="m2_mix_sine", name="SINE"}, e2 = {id="m2_mix_tri", name="TRI"}, e3 = {id="m2_mix_saw", name="SAW"}, e4 = {id="m2_mix_pulse", name="PULSE"} } },
-    [3] = { A = { title = "1023 - OSC 1", e1 = {id="m3_pwm1", name="PWM"}, e2 = {id="m3_tune1", name="TUNE"}, e3 = {id="m3_morph1", name="MORPH"}, k2 = {id="m3_range1", name=""} }, B = { title = "1023 - OSC 2", e1 = {id="m3_pwm2", name="PWM"}, e2 = {id="m3_tune2", name="TUNE"}, e3 = {id="m3_morph2", name="MORPH"}, k2 = {id="m3_range2", name=""} } },
+    [3] = { A = { title = "1023 - OSC 1", e1 = {id="m3_pwm1", name="PWM"}, e2 = {id="m3_tune1", name="TUNE"}, e3 = {id="m3_morph1", name="MORPH"}, e4 = {id="m3_fine1", name="FINE"}, k2 = {id="m3_range1", name=""} }, B = { title = "1023 - OSC 2", e1 = {id="m3_pwm2", name="PWM"}, e2 = {id="m3_tune2", name="TUNE"}, e3 = {id="m3_morph2", name="MORPH"}, e4 = {id="m3_fine2", name="FINE"}, k2 = {id="m3_range2", name=""} } },
     [4] = { A = { title = "1016 NOISE", e1 = {id="m4_slow_rate", name="RATE"}, e2 = {id="m4_tilt1", name="TILT 1"}, e3 = {id="m4_tilt2", name="TILT 2"}, k2 = {id="m4_type1", name="N1"}, k3 = {id="m4_type2", name="N2"} }, B = { title = "1036 S&H", e1 = {id="m4_clk_rate", name="CLOCK"}, e2 = {id="m4_prob_skew", name="SKEW"}, e3 = {id="m4_glide", name="GLIDE"} } },
-    [5] = { A = { title = "1005 STATE", e1 = {id="m5_drive", name="DRIVE"}, e2 = {id="m5_mod_gain", name="MOD"}, e3 = {id="m5_unmod_gain", name="UNMOD"}, k2 = {id="m5_state", name="ST"} }, B = { title = "1005 VCA", e1 = {id="m5_xfade", name="XFADE"}, e2 = {id="m5_vca_base", name="BASE"}, e3 = {id="m5_vca_resp", name="RESP"}, k2 = {id="m5_state", name="ST"} } },
-    [6] = { A = { title = "1047 (A) FILTER", e1 = {id="m6_q", name="RES"}, e2 = {id="m6_cutoff", name="FREQ"}, e3 = {id="m6_fine", name="FINE"}, e4 = {id="m6_jfet", name="DRIVE"}, k2 = {id="m6_ping", name="PING"} }, B = { title = "1047 (A) NOTCH", e1 = {id="m6_p_shift", name="P.SHIFT"}, e2 = {id="m6_notch", name="NOTCH FRQ"}, e3 = {id="m6_final_q", name="KEY DCY"}, k2 = {id="m6_ping", name="PING"} } },
+    [5] = { A = { title = "1005 STATE", e1 = {id="m5_drive", name="DRIVE"}, e2 = {id="m5_mod_gain", name="MOD"}, e3 = {id="m5_unmod_gain", name="UNMOD"}, k2 = {id="m5_state", name="ST"} }, B = { title = "1005 VCA", e1 = {id="m5_xfade", name="XFADE"}, e2 = {id="m5_vca_base", name="BASE"}, e3 = {id="m5_vca_resp", name="RESP"}, k2 = {id="m5_state", name="ST"} } },[6] = { A = { title = "1047 (A) FILTER", e1 = {id="m6_q", name="RES"}, e2 = {id="m6_cutoff", name="FREQ"}, e3 = {id="m6_fine", name="FINE"}, e4 = {id="m6_jfet", name="DRIVE"}, k2 = {id="m6_ping", name="PING"} }, B = { title = "1047 (A) NOTCH", e1 = {id="m6_p_shift", name="P.SHIFT"}, e2 = {id="m6_notch", name="NOTCH FRQ"}, e3 = {id="m6_final_q", name="KEY DCY"}, k2 = {id="m6_ping", name="PING"} } },
     [7] = { A = { title = "1047 (B) FILTER", e1 = {id="m7_q", name="RES"}, e2 = {id="m7_cutoff", name="FREQ"}, e3 = {id="m7_fine", name="FINE"}, e4 = {id="m7_jfet", name="DRIVE"}, k2 = {id="m7_ping", name="PING"} }, B = { title = "1047 (B) NOTCH", e1 = {id="m7_p_shift", name="P.SHIFT"}, e2 = {id="m7_notch", name="NOTCH FRQ"}, e3 = {id="m7_final_q", name="KEY DCY"}, k2 = {id="m7_ping", name="PING"} } },
     [8] = { A = { title = "NEXUS MASTER", e1 = {id="m8_res", name="RES"}, e2 = {id="m8_cut_l", name="VCF L"}, e3 = {id="m8_cut_r", name="VCF R"}, k2 = {id="m8_filt_byp", name="FILT"}, k3 = {id="m8_adc_mon", name="ADC"} }, B = { title = "NEXUS TAPE", e1 = {id="m8_tape_mix", name="MIX"}, e2 = {id="m8_tape_time", name="TIME"}, e3 = {id="m8_tape_fb", name="FDBK"}, e4 = {id="m8_wow", name="W&F"}, k2 = {id="m8_tape_sat", name="SAT"}, k3 = {id="m8_tape_mute", name="MUTE"} } }
 }
 
--- ANOTACIÓN PARA EL EQUIPO: Función helper para registrar el parámetro tocado en modo Learn
 local function register_touch(G, param_id)
     G.last_touched_param = param_id
     if G.learn_mode then
@@ -73,7 +68,6 @@ function ScreenUI.draw_idle(G)
     screen.level(1); screen.move(0, 20); screen.line(128, 20); screen.stroke()
     screen.move(0, 28); screen.line(128, 28); screen.stroke()
     
-    -- CARTEL DE MORPHING DINÁMICO
     local show_morph = false
     if G.morph_percent and G.morph_percent >= 0 then
         if G.morph_percent < 100 then
@@ -90,11 +84,12 @@ function ScreenUI.draw_idle(G)
         screen.move(64, 26)
         screen.text_center(string.format("MORPHING: %d%%", math.floor(G.morph_percent)))
     else
-        -- ANOTACIÓN PARA EL EQUIPO: Renderizador de texto UI con Fade-out matemático
         local now = util.time()
         if G.ui_text_state.is_fader then
-            if now > G.ui_text_state.timer then
-                -- Fade out: de 15 a 0 en 1 segundo
+            -- ANOTACIÓN PARA EL EQUIPO: Bloqueo de desvanecimiento si estamos en Modo Learn
+            if G.learn_mode then
+                G.ui_text_state.level = 15
+            elseif now > G.ui_text_state.timer then
                 local fade_progress = now - G.ui_text_state.timer
                 if fade_progress >= 1.0 then
                     G.ui_text_state.is_fader = false
@@ -102,7 +97,7 @@ function ScreenUI.draw_idle(G)
                     G.ui_text_state.level = 4
                 else
                     G.ui_text_state.level = math.floor(15 * (1.0 - fade_progress))
-                    G.screen_dirty = true -- Forzar redraw continuo durante el fade
+                    G.screen_dirty = true 
                 end
             else
                 G.ui_text_state.level = 15
