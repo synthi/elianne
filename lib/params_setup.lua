@@ -1,9 +1,7 @@
--- lib/params_setup.lua v0.504
--- CHANGELOG v0.504:
+-- lib/params_setup.lua v0.505
+-- CHANGELOG v0.505:
 -- 1. FIX: Añadidos parámetros trigger m6_ping y m7_ping para restaurar el control K2.
--- CHANGELOG v0.502:
--- 1. FEATURE: Rango de Fine Tune ampliado a ±5Hz para 1004-P y 1023.
--- 2. FEATURE: Añadidos parámetros m3_fine1 y m3_fine2 al 1023 Dual VCO.
+-- 2. FEATURE: Rango de Fine Tune ampliado a ±5Hz para 1004-P y 1023.
 
 local Params = {}
 
@@ -120,7 +118,6 @@ function Params.init(G)
     params:add{type = "control", id = "m5_gate_thresh", name = "Gate Threshold", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.001, 0.5), action = function(x) if G.booting then return end; engine.m5_gate_thresh(x) end}
     add_node_params(31, 38)
 
-    -- ANOTACIÓN PARA EL EQUIPO: Contador de grupo actualizado a 18 para incluir el trigger
     params:add_group("MOD 6: 1047 (A)", 18)
     params:add{type = "control", id = "m6_cutoff", name = "Cutoff", controlspec = controlspec.new(10.0, 18000.0, 'exp', 0.01, 1000.0, "Hz"), action = function(x) if G.booting then return end; engine.m6_cutoff(x) end}
     params:add{type = "control", id = "m6_fine", name = "Cutoff Fine", controlspec = controlspec.new(-5.0, 5.0, 'lin', 0.001, 0.0, "Hz"), action = function(x) if G.booting then return end; engine.m6_fine(x) end}
@@ -134,7 +131,6 @@ function Params.init(G)
     params:add{type = "trigger", id = "m6_ping", name = "Ping A", action = function() if not G.booting then engine.m6_ping() end end}
     add_node_params(39, 46)
 
-    -- ANOTACIÓN PARA EL EQUIPO: Contador de grupo actualizado a 18 para incluir el trigger
     params:add_group("MOD 7: 1047 (B)", 18)
     params:add{type = "control", id = "m7_cutoff", name = "Cutoff", controlspec = controlspec.new(10.0, 18000.0, 'exp', 0.01, 1000.0, "Hz"), action = function(x) if G.booting then return end; engine.m7_cutoff(x) end}
     params:add{type = "control", id = "m7_fine", name = "Cutoff Fine", controlspec = controlspec.new(-5.0, 5.0, 'lin', 0.001, 0.0, "Hz"), action = function(x) if G.booting then return end; engine.m7_fine(x) end}
