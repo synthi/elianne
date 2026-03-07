@@ -1,7 +1,6 @@
--- lib/params_setup.lua v0.505
--- CHANGELOG v0.505:
--- 1. FIX: Añadidos parámetros trigger m6_ping y m7_ping para restaurar el control K2.
--- 2. FEATURE: Rango de Fine Tune ampliado a ±5Hz para 1004-P y 1023.
+-- lib/params_setup.lua v0.520
+-- CHANGELOG v0.520:
+-- 1. FIX: Comandos OSC m6_ping y m7_ping actualizados para enviar argumento "1" (Fates Bug Fix).
 
 local Params = {}
 
@@ -128,7 +127,7 @@ function Params.init(G)
     params:add{type = "control", id = "m6_p_shift", name = "Perc Pitch Shift", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.1), action = function(x) if G.booting then return end; engine.set_global_physics("p_shift", x) end}
     params:add{type = "control", id = "m6_jfet", name = "JFET Drive", controlspec = controlspec.new(0.1, 5.0, 'lin', 0.01, 1.5), action = function(x) if G.booting then return end; engine.m6_jfet(x) end}
     params:add{type = "option", id = "m6_cv2_mode", name = "CV2 Mode", options = {"NORM", "KEYB"}, default = 1, action = function(x) if G.booting then return end; engine.m6_cv2_mode(x - 1) end}
-    params:add{type = "trigger", id = "m6_ping", name = "Ping A", action = function() if not G.booting then engine.m6_ping() end end}
+    params:add{type = "trigger", id = "m6_ping", name = "Ping A", action = function() if not G.booting then engine.m6_ping(1) end end}
     add_node_params(39, 46)
 
     params:add_group("MOD 7: 1047 (B)", 18)
@@ -141,7 +140,7 @@ function Params.init(G)
     params:add{type = "control", id = "m7_p_shift", name = "Perc Pitch Shift", controlspec = controlspec.new(0.0, 1.0, 'lin', 0.01, 0.1), action = function(x) if G.booting then return end; engine.set_global_physics("p_shift", x) end}
     params:add{type = "control", id = "m7_jfet", name = "JFET Drive", controlspec = controlspec.new(0.1, 5.0, 'lin', 0.01, 1.5), action = function(x) if G.booting then return end; engine.m7_jfet(x) end}
     params:add{type = "option", id = "m7_cv2_mode", name = "CV2 Mode", options = {"NORM", "KEYB"}, default = 1, action = function(x) if G.booting then return end; engine.m7_cv2_mode(x - 1) end}
-    params:add{type = "trigger", id = "m7_ping", name = "Ping B", action = function() if not G.booting then engine.m7_ping() end end}
+    params:add{type = "trigger", id = "m7_ping", name = "Ping B", action = function() if not G.booting then engine.m7_ping(1) end end}
     add_node_params(47, 54)
 
     params:add_group("MOD 8: NEXUS", 33)
@@ -165,14 +164,11 @@ function Params.init(G)
     params:add{type = "option", id = "m8_cv_dest_l", name = "CV L Dest", options = {"VCA", "PAN"}, default = 1, action = function(x) if G.booting then return end; engine.m8_cv_dest_l(x - 1) end}
     params:add{type = "option", id = "m8_cv_dest_r", name = "CV R Dest", options = {"VCA", "PAN"}, default = 1, action = function(x) if G.booting then return end; engine.m8_cv_dest_r(x - 1) end}
     
-    -- ADC Envelope Follower Params
     params:add{type = "option", id = "m8_adc_mode_l", name = "ADC L Mode", options = {"AUDIO", "ENV"}, default = 1, action = function(x) if G.booting then return end; engine.adc_mode_l(x - 1) end}
     params:add{type = "option", id = "m8_adc_mode_r", name = "ADC R Mode", options = {"AUDIO", "ENV"}, default = 1, action = function(x) if G.booting then return end; engine.adc_mode_r(x - 1) end}
     params:add{type = "control", id = "m8_adc_slew", name = "ADC Env Slew", controlspec = controlspec.new(0.01, 2.0, 'exp', 0.01, 0.1, "s"), action = function(x) if G.booting then return end; engine.adc_slew(x) end}
     
     add_node_params(55, 64)
-
-    print("ELIANNE: Parámetros Registrados al 100%.")
 end
 
 return Params
