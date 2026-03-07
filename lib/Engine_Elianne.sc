@@ -1,4 +1,7 @@
-// lib/Engine_Elianne.sc v0.520
+// lib/Engine_Elianne.sc v0.521
+// CHANGELOG v0.521:
+// 1. FIX FATAL: Corregido rate mismatch en LinExp (ar -> kr) en Nexus.
+// 2. FIX FATAL: Corregida expansión multicanal en Select.ar del Nexus.
 // CHANGELOG v0.520:
 // 1. REFACTOR: Topología Split TX/RX con DMZ (36 TX, 32 RX).
 // 2. FIX: Comandos OSC m6_ping y m7_ping exigen argumento "i" para evitar crash en Fates.
@@ -244,19 +247,27 @@ Engine_Elianne : CroneEngine {
             mr = Pan2.ar((InFeedback.ar(in_mr) * In.kr(lvl_mr) + pink_cv) * (1.0 + vca_mod_r).clip(0, 2), (In.kr(pan_mr) + pan_mod_r).clip(-1, 1));
             sum = (ml + mr) * drive;
             
-            age_vcf_l = K2A.ar(LFNoise2.kr(0.0151)) * sys_age * 0.05; age_vcf_r = K2A.ar(LFNoise2.kr(0.0163)) * sys_age * 0.05;
+            age_vcf_l = K2A.ar(LFNoise2.kr(0.0151)) * sys_age * 0.05;
+            age_vcf_r = K2A.ar(LFNoise2.kr(0.0163)) * sys_age * 0.05;
+            
             filt_l = DFM1.ar(sum[0], (cut_l * (1.0 + age_vcf_l + brown_cv)).clip(20, 18000), res, 1.0, 0.0, 0.0005);
             filt_r = DFM1.ar(sum[1], (cut_r * (1.0 + age_vcf_r + brown_cv)).clip(20, 18000), res, 1.0, 0.0, 0.0005);
+            filt_sig =[Select.ar(K2A.ar(filt_byp), [filt_l, sum[0]]), Select.ar(K2A.ar(filt_byp), [filt_r, sum[1]])];
             
-            byp = K2A.ar(filt_byp);
-            filt_sig_l = Select.ar(byp,[filt_l, sum[0]]);
-            filt_sig_r = Select.ar(byp,[filt_r, sum[1]]);
-            filt_sig = [filt_sig_l, filt_sig_r];
+            wow_amt = In.kr(phys_bus + 5);
+            flut_amt = In.kr(phys_bus + 6);
+            tape_in = filt_sig + (LocalIn.ar(2) * tape_fb);
             
-            wow_amt = In.kr(phys_bus + 5); flut_amt = In.kr(phys_bus + 6); tape_in = filt_sig + (LocalIn.ar(2) * tape_fb);
-            tape_time_lag = Lag3.kr(tape_time, 0.5); wow = OnePole.kr(LFNoise2.kr(Rand(0.5, 2.0)) * wow_amt * 0.05, 0.95); flutter = LFNoise1.kr(15) * flut_amt * 0.005;
-            tape_dt = (tape_time_lag + wow + flutter).clip(0.01, 6.1); tape_raw = DelayC.ar(tape_in, 6.2, tape_dt); tape_sat_sig = (tape_raw + (Delay1.ar(tape_raw) * 0.2)).tanh;
-            tape_physics_cutoff = LinExp.ar(tape_dt.max(0.01), 0.01, 6.0, 15000, 1500); tape_out = LPF.ar(tape_sat_sig, tape_physics_cutoff);
+            tape_time_lag = Lag3.kr(tape_time, 0.5);
+            wow = OnePole.kr(LFNoise2.kr(Rand(0.5, 2.0)) * wow_amt * 0.05, 0.95);
+            flutter = LFNoise1.kr(15) * flut_amt * 0.005;
+            
+            tape_dt = (tape_time_lag + wow + flutter).clip(0.01, 6.1);
+            tape_raw = DelayC.ar(tape_in, 6.2, tape_dt);
+            tape_sat_sig = (tape_raw + (Delay1.ar(tape_raw) * 0.2)).tanh;
+            
+            tape_physics_cutoff = LinExp.kr(tape_dt.max(0.01), 0.01, 6.0, 15000, 1500);
+            tape_out = LPF.ar(tape_sat_sig, tape_physics_cutoff);
             loop_dust_trig = Dust.kr(tape_erosion * 15); loop_dropout_env = Decay.kr(loop_dust_trig, 0.1); loop_gain_loss = (loop_dropout_env * tape_erosion).clip(0, 0.9); tape_out = tape_out * (1.0 - loop_gain_loss);
             LocalOut.ar(tape_out); 
             
