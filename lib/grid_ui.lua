@@ -1,9 +1,6 @@
--- lib/grid_ui.lua v0.502
--- CHANGELOG v0.502:
--- 1. FIX: Salida rápida del Modo Learn pulsando el botón parpadeante sin Shift.
--- 2. FEATURE: Botón Learn en x=2, y=8 con parpadeo matemático.
--- CHANGELOG v0.201:
--- 1. FIX: Nodos ADC (x=15, x=16, y=8) ahora se dibujan y funcionan correctamente.
+-- lib/grid_ui.lua v0.520
+-- CHANGELOG v0.520:
+-- 1. FIX: Safe 2D Indexing (Addendum 3) implementado en todas las lecturas de G.grid_map.
 
 local GridUI = {}
 
@@ -37,18 +34,15 @@ function GridUI.key(G, g, x, y, z)
         return
     end
 
-    -- ANOTACIÓN PARA EL EQUIPO: Botón Learn (x=2, y=8) con salida rápida
     if x == 2 and y == 8 then
         if z == 1 then
             if G.learn_mode then
-                -- Salir del modo Learn (no requiere Shift)
                 G.learn_mode = false
                 G.ui_text_state.text = "ELIANNE 2500"
                 G.ui_text_state.level = 4
                 G.ui_text_state.is_fader = false
                 G.screen_dirty = true
             elseif G.shift_held then
-                -- Entrar al modo Learn
                 G.learn_mode = true
                 G.ui_text_state.text = "LEARN: MUEVE PARAM"
                 G.ui_text_state.level = 15
@@ -71,7 +65,6 @@ function GridUI.key(G, g, x, y, z)
                     G.snapshots[snap_id].patch = nil
                     G.snapshots[snap_id].params = nil
                     if G.active_snap == snap_id then G.active_snap = nil end
-                    print("ELIANNE: Snapshot " .. snap_id .. " borrado.")
                 end
             else
                 if not G.snapshots[snap_id].has_data or G.active_snap == snap_id then
@@ -85,7 +78,7 @@ function GridUI.key(G, g, x, y, z)
         return
     end
 
-    local node = G.grid_map[x][y]
+    local node = G.grid_map[x] and G.grid_map[x][y]
     local is_menu = (y == 4)
 
     if z == 1 then
@@ -106,25 +99,21 @@ function GridUI.key(G, g, x, y, z)
                 GridUI.disconnect_timer = clock.run(function()
                     clock.sleep(1.0)
                     local Matrix = include('lib/matrix')
-                    local count = 0
                     if node.type == "out" then
                         for dst = 1, 64 do
-                            if G.patch[node.id][dst].active then
+                            if G.patch[node.id] and G.patch[node.id][dst] and G.patch[node.id][dst].active then
                                 G.patch[node.id][dst].active = false
                                 if Matrix.disconnect then Matrix.disconnect(node.id, dst, G) else Matrix.update_destination(dst, G) end
-                                count = count + 1
                             end
                         end
                     elseif node.type == "in" then
                         for src = 1, 64 do
-                            if G.patch[src][node.id].active then
+                            if G.patch[src] and G.patch[src][node.id] and G.patch[src][node.id].active then
                                 G.patch[src][node.id].active = false
                                 if Matrix.disconnect then Matrix.disconnect(src, node.id, G) else Matrix.update_destination(node.id, G) end
-                                count = count + 1
                             end
                         end
                     end
-                    print("ELIANNE: " .. count .. " cables desconectados del nodo " .. node.name)
                     G.screen_dirty = true
                     GridUI.disconnect_timer = nil
                 end)
@@ -137,19 +126,19 @@ function GridUI.key(G, g, x, y, z)
                     local dst = (n1.type == "in") and n1 or n2
                     local Matrix = include('lib/matrix')
                     
-                    if G.patch[src.id][dst.id].active then
+                    if G.patch[src.id] and G.patch[src.id][dst.id] and G.patch[src.id][dst.id].active then
                         GridUI.disconnect_timer = clock.run(function()
                             clock.sleep(1.0)
                             G.patch[src.id][dst.id].active = false
                             if Matrix.disconnect then Matrix.disconnect(src.id, dst.id, G) else Matrix.update_destination(dst.id, G) end
                             G.screen_dirty = true
-                            print("ELIANNE: Cable desconectado.")
                             GridUI.disconnect_timer = nil
                         end)
                     else
+                        if not G.patch[src.id] then G.patch[src.id] = {} end
+                        if not G.patch[src.id][dst.id] then G.patch[src.id][dst.id] = {active=false, level=1.0, pan=0.0} end
                         G.patch[src.id][dst.id].active = true
                         if Matrix.connect then Matrix.connect(src.id, dst.id, G) else Matrix.update_destination(dst.id, G) end
-                        print("ELIANNE: Cable conectado.")
                     end
                     
                     G.focus.state = "patching"
@@ -194,10 +183,9 @@ function GridUI.redraw(G, g)
                 if x == 1 then
                     b = G.shift_held and 15 or 8
                 elseif x == 2 then
-                    -- ANOTACIÓN PARA EL EQUIPO: Parpadeo matemático del botón Learn
                     if G.learn_mode then
                         b = (math.floor(util.time() * 4) % 2 == 0) and 15 or 4
-                        G.screen_dirty = true -- Forzar redraw para el parpadeo
+                        G.screen_dirty = true
                     else
                         b = G.shift_held and 4 or 0
                     end
@@ -214,7 +202,7 @@ function GridUI.redraw(G, g)
             else
                 local module_idx = math.ceil(x / 2)
                 local is_even_module = (module_idx % 2 == 0)
-                local node = G.grid_map[x][y]
+                local node = G.grid_map[x] and G.grid_map[x][y]
                 local is_menu = (y == 4)
                 
                 if (node and node.type ~= "dummy") or is_menu then
@@ -224,9 +212,9 @@ function GridUI.redraw(G, g)
                         if h.x == x and h.y == y then
                             b = 15
                         elseif h.node and node then
-                            if h.node.type == "out" and node.type == "in" and G.patch[h.node.id][node.id].active then
+                            if h.node.type == "out" and node.type == "in" and G.patch[h.node.id] and G.patch[h.node.id][node.id] and G.patch[h.node.id][node.id].active then
                                 b = 10
-                            elseif h.node.type == "in" and node.type == "out" and G.patch[node.id][h.node.id].active then
+                            elseif h.node.type == "in" and node.type == "out" and G.patch[node.id] and G.patch[node.id][h.node.id] and G.patch[node.id][h.node.id].active then
                                 b = 10
                             end
                         end
